@@ -1100,10 +1100,14 @@ function computeStatus(row) {
 
 // ===== FILTERS =====
 function rebuildFilters() {
+  const sel = document.getElementById('fioFilter');
+  const cur = sel ? sel.value : '';
   const fioSet = new Set();
   [...sheets.active,...sheets.zap].forEach(r => { if (r.FIO) fioSet.add(r.FIO); });
-  document.getElementById('fioFilter').innerHTML = '<option value="">Усі</option>' +
-    [...fioSet].sort().map(f => `<option value="${escapeAttr(f)}">${escapeHtml(f)}</option>`).join('');
+  const opts = [...fioSet].sort();
+  sel.innerHTML = '<option value="">Усі</option>' +
+    opts.map(f => `<option value="${escapeAttr(f)}">${escapeHtml(f)}</option>`).join('');
+  if (cur && opts.includes(cur)) sel.value = cur;
 }
 function getFilteredIndices() {
   const q = (document.getElementById('searchInput')?.value||'').trim().toLowerCase();
