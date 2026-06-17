@@ -192,6 +192,13 @@ tr.row-overdue td.sticky-cb,tr.row-overdue td.sticky-type,tr.row-overdue td.stic
 tr.row-soon td.sticky-cb,tr.row-soon td.sticky-type,tr.row-soon td.sticky-id,tr.row-soon td.sticky-adres{background:#fef3c7;}
 tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.sticky-id,tr.row-selected td.sticky-adres{background:#dbeafe!important;}
 .sticky-shadow{box-shadow:2px 0 6px rgba(0,0,0,.08);}
+/* Групи стовпців: розділювач перед "Етапами" та "Технічними" */
+[data-col="dogovir"]{border-left:2px solid var(--border-strong)!important;}
+[data-col="port"]{border-left:2px solid var(--border-strong)!important;}
+/* Компактний режим: ховаємо описові й технічні стовпці, лишаємо ID, адресу та етапи */
+.compact [data-col="SD"], .compact [data-col="Org"], .compact [data-col="Old ATM"],
+.compact [data-col="FIO"], .compact [data-col="port"], .compact [data-col="date pog"],
+.compact [data-col="Date SLO"], .compact [data-col="Date Start"], .compact [data-col="Note"]{display:none;}
 </style>
 </head>
 <body>
@@ -250,6 +257,7 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
     <button class="btn btn-sync" id="syncBtn" onclick="syncFromDB()">🔄 Оновити з бази</button>
     <button class="btn btn-sync" id="updateDbBtn" onclick="pushAllToDB()" style="display:none">💾 Оновити базу</button>
     <button class="btn" id="addRowBtn" onclick="addRow()" disabled>+ Додати ТБС</button>
+    <button class="btn" id="compactBtn" onclick="toggleCompact()">↔ Компактно</button>
     <button class="btn" id="reportBtn" onclick="showReport()" disabled>📊 Звіт</button>
     <button class="btn btn-log" id="logBtn" onclick="showLog()">📋 Журнал дій</button>
     <button class="btn" id="cpBtn" onclick="window.open('checkpoint.html','_blank')" style="display:none;background:#0369a1;color:#fff;border-color:#0369a1">🔒 CheckPoint</button>
@@ -1167,7 +1175,7 @@ function render() {
     const cls = [rowClass(row), selected.has(i)?'row-selected':''].filter(Boolean).join(' ');
     html += `<tr class="${cls}">`;
     if (currentSheet==='active') html += `<td class="checkbox-cell sticky-cb"><input type="checkbox" ${selected.has(i)?'checked':''} onchange="toggleSelect(${i},this.checked)"></td>`;
-    COLUMNS.forEach(col => { html += renderCell(row,col,i); });
+    COLUMNS.forEach(col => { html += renderCell(row,col,i).replace('<td', `<td data-col="${col.key}"`); });
     html += renderActionCell(i,row);
     if (currentSheet==='zap') html += `<td class="meta-cell">${fmtDateUk(row.__meta?.launchedAt)||'—'}</td>`;
     html += '</tr>';
@@ -1523,6 +1531,13 @@ async function bulkDelete() {
 }
 
 // ===== SORT =====
+function toggleCompact() {
+  const w = document.getElementById('tableWrap');
+  w.classList.toggle('compact');
+  const b = document.getElementById('compactBtn');
+  if (b) b.textContent = w.classList.contains('compact') ? '↔ Повний вигляд' : '↔ Компактно';
+}
+
 function toggleSort(key) {
   if (sortBy===key) { if (sortDir===1) sortDir=-1; else { sortBy=null; sortDir=1; } }
   else { sortBy=key; sortDir=1; }
