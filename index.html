@@ -206,7 +206,7 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 .card-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;}
 .card-fields label{display:flex;flex-direction:column;font-size:12px;gap:3px;color:#555;}
 .card-fields label.card-check{flex-direction:row;align-items:center;gap:7px;font-size:13px;color:#222;padding:4px 0;}
-.card-fields input[type=text],.card-fields select,.card-fields textarea{padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;color:#222;font-family:inherit;}
+.card-fields input[type=text],.card-fields input[type=date],.card-fields select,.card-fields textarea{padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;color:#222;font-family:inherit;}
 .card-fields input[type=checkbox]{width:18px;height:18px;}
 .card-actions{margin-top:16px;display:flex;gap:8px;justify-content:flex-end;}
 .btn-edit{background:#0369a1;color:#fff;border:1px solid #0369a1;border-radius:4px;cursor:pointer;padding:1px 4px;font-size:11px;line-height:1.4;}
@@ -1883,6 +1883,9 @@ function cardFieldHtml(col, row) {
   }
   if (col.type==='note') {
     return `<label>${col.label}<textarea ${dk} rows="2">${String(v)}</textarea></label>`;
+  }
+  if (col.type==='date') {
+    return `<label>${col.label}<input type="date" ${dk} value="${String(v).replace(/"/g,'&quot;')}"></label>`;
   }
   return `<label>${col.label}<input type="text" ${dk} value="${String(v).replace(/"/g,'&quot;')}"></label>`;
 }
