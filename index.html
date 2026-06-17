@@ -199,6 +199,18 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 .compact [data-col="SD"], .compact [data-col="Org"], .compact [data-col="Old ATM"],
 .compact [data-col="FIO"], .compact [data-col="port"], .compact [data-col="date pog"],
 .compact [data-col="Date SLO"], .compact [data-col="Date Start"], .compact [data-col="Note"]{display:none;}
+/* Картка редагування рядка */
+.card-head h3{margin:0 0 12px;font-size:16px;}
+.card-group{margin-bottom:14px;}
+.card-group-title{font-weight:700;font-size:12px;color:#0369a1;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:3px;}
+.card-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;}
+.card-fields label{display:flex;flex-direction:column;font-size:12px;gap:3px;color:#555;}
+.card-fields label.card-check{flex-direction:row;align-items:center;gap:7px;font-size:13px;color:#222;padding:4px 0;}
+.card-fields input[type=text],.card-fields select,.card-fields textarea{padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;color:#222;font-family:inherit;}
+.card-fields input[type=checkbox]{width:18px;height:18px;}
+.card-actions{margin-top:16px;display:flex;gap:8px;justify-content:flex-end;}
+.btn-edit{background:#0369a1;color:#fff;border:1px solid #0369a1;border-radius:4px;cursor:pointer;padding:2px 7px;font-size:13px;}
+.btn-edit:hover{background:#075985;}
 </style>
 </head>
 <body>
@@ -1254,12 +1266,14 @@ function renderActionCell(idx, row) {
   if (currentSheet==='active') {
     const ready = isReady(row);
     return `<td class="action-cell">
+      <button class="btn-edit" onclick="editCard(${idx})" title="Картка редагування">✏️</button>
       <button class="btn-launch" ${ready?'':'disabled'} title="${ready?'Перенести в ZAP':'Заповніть всі галочки (включно ТМК), Канал та Date of sending SLO'}" onclick="launchRow(${idx})">Запущено →</button>
       <button class="btn-dup" onclick="duplicateRow(${idx})" title="Дублювати">⎘</button>
       <button class="btn-del" onclick="deleteRow(${idx})" title="Видалити">✕</button>
     </td>`;
   }
   return `<td class="action-cell">
+    <button class="btn-edit" onclick="editCard(${idx})" title="Картка редагування">✏️</button>
     <button class="btn-back" onclick="returnRow(${idx})">← Повернути</button>
     <button class="btn-del" onclick="deleteRow(${idx})" title="Видалити">✕</button>
   </td>`;
@@ -1848,6 +1862,60 @@ function exportMonthReport(selectedMonth) {
   XLSX.writeFile(wb, `atm_report_${selectedMonth}.xlsx`);
   logAction('export', '—', `Звіт за ${monthName}: ${rows.length} пристроїв`);
 }
+// ===== Картка редагування рядка =====
+const CARD_GROUPS = [
+  { title:'Опис', keys:['_type','ID','ADRES','SD','Org','Old ATM','FIO'] },
+  { title:'Етапи', keys:['dogovir','DIS','BEC','Limi','ТМК','Сигналізація','СБОН'] },
+  { title:'Технічні', keys:['Канал','port'] },
+  { title:'Дати', keys:['date pog','Date SLO','Date Start'] },
+  { title:'Примітка', keys:['Note'] },
+];
+function cardFieldHtml(col, row) {
+  const v = row[col.key] ?? '';
+  const dk = `data-key="${col.key}"`;
+  if (col.key==='_type' || col.type==='typebadge') {
+    return `<label>${col.label}<select ${dk}><option value="ATM"${v==='ATM'?' selected':''}>ATM</option><option value="IPT"${v==='IPT'?' selected':''}>IPT</option></select></label>`;
+  }
+  if (col.type==='select') {
+    const opts = (col.options||[]).map(o=>`<option value="${o}"${String(v)===o?' selected':''}>${o||'—'}</option>`).join('');
+    return `<label>${col.label}<select ${dk}>${opts}</select></label>`;
+  }
+  if (col.type==='check' || col.type==='check-atm' || col.type==='check-ipt') {
+    return `<label class="card-check"><input type="checkbox" ${dk} ${v===true?'checked':''}> ${col.label}</label>`;
+  }
+  if (col.type==='note') {
+    return `<label>${col.label}<textarea ${dk} rows="2">${String(v)}</textarea></label>`;
+  }
+  return `<label>${col.label}<input type="text" ${dk} value="${String(v).replace(/"/g,'&quot;')}"></label>`;
+}
+function editCard(idx) {
+  const row = sheets[currentSheet][idx];
+  if (!row) return;
+  const byKey = {}; COLUMNS.forEach(c => byKey[c.key] = c);
+  let html = `<div class="card-head"><h3>Картка: ${row.ID||'(новий запис)'}</h3></div>`;
+  CARD_GROUPS.forEach(g => {
+    html += `<div class="card-group"><div class="card-group-title">${g.title}</div><div class="card-fields">`;
+    g.keys.forEach(k => { const col = byKey[k]; if (col) html += cardFieldHtml(col, row); });
+    html += `</div></div>`;
+  });
+  html += `<div class="card-actions"><button class="btn" onclick="closeModal()">Закрити</button><button class="btn btn-primary" onclick="saveCard(${idx})">Зберегти</button></div>`;
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modal').classList.add('show');
+}
+function saveCard(idx) {
+  const row = sheets[currentSheet][idx];
+  if (!row) { closeModal(); return; }
+  document.querySelectorAll('#modalContent [data-key]').forEach(el => {
+    const k = el.getAttribute('data-key');
+    if (el.type==='checkbox') row[k] = el.checked;
+    else row[k] = el.value;
+  });
+  if (row.__meta) row.__meta.modified = todayISO();
+  persistRow(row, currentSheet==='active' ? 'ATM' : 'ZAP');
+  render();
+  closeModal();
+}
+
 function closeModal() { document.getElementById('modal').classList.remove('show'); }
 
 // ===== EXPORT EXCEL =====
