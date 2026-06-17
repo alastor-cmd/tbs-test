@@ -179,8 +179,8 @@ td.meta-cell{font-size:10px;color:var(--text-muted);white-space:nowrap;}
 /* Sticky колонки */
 .sticky-cb{position:sticky;left:0;z-index:3;background:inherit;}
 .sticky-type{position:sticky;left:32px;z-index:3;background:inherit;}
-.sticky-id{position:sticky;left:92px;z-index:3;background:inherit;}
-.sticky-adres{position:sticky;left:192px;z-index:3;background:inherit;min-width:220px;max-width:260px;}
+.sticky-id{position:sticky;left:112px;z-index:3;background:inherit;}
+.sticky-adres{position:sticky;left:212px;z-index:3;background:inherit;min-width:220px;max-width:260px;}
 th.sticky-cb,th.sticky-type,th.sticky-id,th.sticky-adres{z-index:4;}
 th.sticky-cb{background:#f5f5f4;}
 th.sticky-type{background:#f5f5f4;}
@@ -209,7 +209,7 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 .card-fields input[type=text],.card-fields select,.card-fields textarea{padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;color:#222;font-family:inherit;}
 .card-fields input[type=checkbox]{width:18px;height:18px;}
 .card-actions{margin-top:16px;display:flex;gap:8px;justify-content:flex-end;}
-.btn-edit{background:#0369a1;color:#fff;border:1px solid #0369a1;border-radius:4px;cursor:pointer;padding:2px 7px;font-size:13px;}
+.btn-edit{background:#0369a1;color:#fff;border:1px solid #0369a1;border-radius:4px;cursor:pointer;padding:1px 4px;font-size:11px;line-height:1.4;}
 .btn-edit:hover{background:#075985;}
 </style>
 </head>
@@ -879,7 +879,7 @@ function loadSeedData() {
 
 // ===== COLUMNS =====
 const COLUMNS = [
-  { key:'_type', label:'Тип', type:'typebadge', width:60, sortable:true },
+  { key:'_type', label:'Тип', type:'typebadge', width:80, sortable:true },
   { key:'ID', label:'ID', type:'alnum', maxLen:10, sortable:true, width:100 },
   { key:'ADRES', label:'Адреса', type:'alnum', maxLen:64, sortable:true, wrap:true, width:260 },
   { key:'SD', label:'SD', type:'sd', sortable:true, width:140 },
@@ -1244,7 +1244,7 @@ function renderCell(row, col, idx) {
     const isIPT = row['_type'] === 'IPT';
     const color = isIPT ? 'background:#f3e8ff;color:#6d28d9' : 'background:#dbeafe;color:#1e40af';
     const label = isIPT ? 'ІПТ' : 'ATM';
-    return `<td class="sticky-type"><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;${color}">${label}</span></td>`;
+    return `<td class="sticky-type"><div style="display:flex;align-items:center;gap:4px"><button class="btn-edit" onclick="editCard(${idx})" title="Картка редагування">✏️</button><span style="padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;${color}">${label}</span></div></td>`;
   }
   if (col.type==='port') {
     const dup = v && isDuplicatePort(v,row.ADRES,idx);
@@ -1266,14 +1266,12 @@ function renderActionCell(idx, row) {
   if (currentSheet==='active') {
     const ready = isReady(row);
     return `<td class="action-cell">
-      <button class="btn-edit" onclick="editCard(${idx})" title="Картка редагування">✏️</button>
       <button class="btn-launch" ${ready?'':'disabled'} title="${ready?'Перенести в ZAP':'Заповніть всі галочки (включно ТМК), Канал та Date of sending SLO'}" onclick="launchRow(${idx})">Запущено →</button>
       <button class="btn-dup" onclick="duplicateRow(${idx})" title="Дублювати">⎘</button>
       <button class="btn-del" onclick="deleteRow(${idx})" title="Видалити">✕</button>
     </td>`;
   }
   return `<td class="action-cell">
-    <button class="btn-edit" onclick="editCard(${idx})" title="Картка редагування">✏️</button>
     <button class="btn-back" onclick="returnRow(${idx})">← Повернути</button>
     <button class="btn-del" onclick="deleteRow(${idx})" title="Видалити">✕</button>
   </td>`;
