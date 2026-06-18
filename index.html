@@ -1906,6 +1906,7 @@ function readCardInto(row) {
 function onCardTypeChange(sel) {
   if (!cardRow) return;
   readCardInto(cardRow);
+  if (cardMode==='add' && /^[AK]\d{7}$/.test(String(cardRow.ID||''))) cardRow.ID = generateTempId(cardRow._type);
   renderCardBody();
 }
 function renderCardBody() {
@@ -1929,6 +1930,7 @@ function addCard() {
   cardRow = {};
   COLUMNS.forEach(c => { cardRow[c.key] = (c.type==='check'||c.type==='check-atm'||c.type==='check-ipt') ? false : ''; });
   cardRow._type = 'ATM';
+  cardRow.ID = generateTempId(cardRow._type);
   cardRow.FIO = (currentUserFio || '').split(' ')[0] || '';
   cardRow._sbId = null;
   cardRow.__meta = { created:todayISO(), modified:todayISO(), launchedAt:null };
@@ -1939,8 +1941,8 @@ function cancelNewCard() { pendingNewRow = null; cardRow = null; closeModal(); }
 function saveNewCard() {
   if (!cardRow) { closeModal(); return; }
   readCardInto(cardRow);
-  const id = String(cardRow.ID || '').trim();
-  if (!id) { alert('Вкажіть ID — без нього запис не зберегти.'); return; }
+  let id = String(cardRow.ID || '').trim();
+  if (!id) id = generateTempId(cardRow._type);
   if (sheets[currentSheet].some(r => String(r.ID||'').trim() === id)) { alert('Запис з таким ID уже є в цьому списку.'); return; }
   cardRow.ID = id;
   cardRow.__meta.modified = todayISO();
