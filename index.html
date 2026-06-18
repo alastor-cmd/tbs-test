@@ -268,7 +268,7 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
     <button class="btn btn-primary" id="exportBtn" onclick="exportExcel()" disabled>📤 Експорт Excel</button>
     <button class="btn btn-sync" id="syncBtn" onclick="syncFromDB()">🔄 Оновити з бази</button>
     <button class="btn btn-sync" id="updateDbBtn" onclick="pushAllToDB()" style="display:none">💾 Оновити базу</button>
-    <button class="btn" id="addRowBtn" onclick="addRow()" disabled>+ Додати ТБС</button>
+    <button class="btn" id="addRowBtn" onclick="addCard()" disabled>+ Додати ТБС</button>
     <button class="btn" id="compactBtn" onclick="toggleCompact()">↔ Компактно</button>
     <button class="btn" id="reportBtn" onclick="showReport()" disabled>📊 Звіт</button>
     <button class="btn btn-log" id="logBtn" onclick="showLog()">📋 Журнал дій</button>
@@ -343,6 +343,7 @@ const USERS = {
 // ===== SESSION =====
 let currentUser = null;
 let currentUserFio = '';
+let pendingNewRow = null;
 
 // Паролі та bypass завантажуються з Supabase (таблиця atm_settings)
 // Формат: { login: { pwd_hash: '...', bypass: false } }
@@ -1875,8 +1876,10 @@ function cardFieldHtml(col, row) {
     return `<label>${col.label}<select ${dk}><option value="ATM"${v==='ATM'?' selected':''}>ATM</option><option value="IPT"${v==='IPT'?' selected':''}>IPT</option></select></label>`;
   }
   if (col.type==='select') {
-    const opts = (col.options||[]).map(o=>`<option value="${o}"${String(v)===o?' selected':''}>${o||'—'}</option>`).join('');
-    return `<label>${col.label}<select ${dk}>${opts}</select></label>`;
+    let opts = (col.options||[]).slice();
+    if (v && !opts.map(String).includes(String(v))) opts.unshift(String(v));
+    const optsHtml = opts.map(o=>`<option value="${o}"${String(v)===String(o)?' selected':''}>${o||'—'}</option>`).join('');
+    return `<label>${col.label}<select ${dk}>${optsHtml}</select></label>`;
   }
   if (col.type==='check' || col.type==='check-atm' || col.type==='check-ipt') {
     return `<label class="card-check"><input type="checkbox" ${dk} ${v===true?'checked':''}> ${col.label}</label>`;
@@ -1888,6 +1891,47 @@ function cardFieldHtml(col, row) {
     return `<label>${col.label}<input type="date" ${dk} value="${String(v).replace(/"/g,'&quot;')}"></label>`;
   }
   return `<label>${col.label}<input type="text" ${dk} value="${String(v).replace(/"/g,'&quot;')}"></label>`;
+}
+function addCard() {
+  if (!currentUser) { alert('Спершу увійдіть у систему.'); return; }
+  pendingNewRow = {};
+  COLUMNS.forEach(c => {
+    if (c.type==='check' || c.type==='check-atm' || c.type==='check-ipt') pendingNewRow[c.key] = false;
+    else pendingNewRow[c.key] = '';
+  });
+  pendingNewRow._type = 'ATM';
+  pendingNewRow.FIO = (currentUserFio || '').split(' ')[0] || '';
+  pendingNewRow._sbId = null;
+  pendingNewRow.__meta = { created:todayISO(), modified:todayISO(), launchedAt:null };
+  const byKey = {}; COLUMNS.forEach(c => byKey[c.key] = c);
+  let html = `<div class="card-head"><h3>Новий запис</h3></div>`;
+  CARD_GROUPS.forEach(g => {
+    html += `<div class="card-group"><div class="card-group-title">${g.title}</div><div class="card-fields">`;
+    g.keys.forEach(k => { const col = byKey[k]; if (col) html += cardFieldHtml(col, pendingNewRow); });
+    html += `</div></div>`;
+  });
+  html += `<div class="card-actions"><button class="btn" onclick="cancelNewCard()">Скасувати</button><button class="btn btn-primary" onclick="saveNewCard()">Створити</button></div>`;
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modal').classList.add('show');
+}
+function cancelNewCard() { pendingNewRow = null; closeModal(); }
+function saveNewCard() {
+  if (!pendingNewRow) { closeModal(); return; }
+  document.querySelectorAll('#modalContent [data-key]').forEach(el => {
+    const k = el.getAttribute('data-key');
+    if (el.type==='checkbox') pendingNewRow[k] = el.checked;
+    else pendingNewRow[k] = el.value;
+  });
+  const id = String(pendingNewRow.ID || '').trim();
+  if (!id) { alert('Вкажіть ID — без нього запис не зберегти.'); return; }
+  if (sheets[currentSheet].some(r => String(r.ID||'').trim() === id)) { alert('Запис з таким ID уже є в цьому списку.'); return; }
+  pendingNewRow.ID = id;
+  pendingNewRow.__meta.modified = todayISO();
+  sheets[currentSheet].push(pendingNewRow);
+  persistRow(pendingNewRow, currentSheet==='active' ? 'ATM' : 'ZAP');
+  logAction('add', id, 'новий запис через картку', currentUser);
+  pendingNewRow = null;
+  render(); updateUI(); closeModal();
 }
 function editCard(idx) {
   const row = sheets[currentSheet][idx];
