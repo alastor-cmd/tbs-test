@@ -1836,10 +1836,65 @@ function showReport(selectedMonth) {
             ATM ${s.atm} · ІПТ ${s.ipt} · запущено ${s.launched}
           </div>`).join('')}
       </div>
-    </div>`}`;
+    </div>`}
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <h3 style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-muted)">Активність користувачів за ${monthName} (за журналом дій)</h3>
+      <div id="userActivity" style="font-size:12px;color:#888">Завантаження…</div>
+    </div>`;
 
   document.getElementById('modalContent').innerHTML = html2;
   document.getElementById('modal').classList.add('show');
+  loadUserActivity(selectedMonth);
+}
+
+async function loadUserActivity(month) {
+  const el = document.getElementById('userActivity');
+  if (!el) return;
+  const thS = `style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--border-strong);background:#f5f5f4;font-size:11px;font-weight:600"`;
+  const tdS = `style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px"`;
+  const tdN = `style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:12px;text-align:center"`;
+  try {
+    const logs = await sbGet('atm_log', 'order=id.desc&limit=5000');
+    const inMonth = (logs||[]).filter(l => String(l.timeISO||'').slice(0,7) === month);
+    const stats = {};
+    inMonth.forEach(l => {
+      const u = l.userFio || l.user || '—';
+      const s = stats[u] || (stats[u] = {fio:u, launches:0, adds:0, edits:0, dels:0, returns:0, total:0});
+      const m = String(l.details||'').match(/^(\d+)/);
+      const cnt = m ? parseInt(m[1]) : 1;
+      switch (l.action) {
+        case 'launch':      s.launches++; break;
+        case 'bulk-launch': s.launches += cnt; break;
+        case 'add':         s.adds++; break;
+        case 'duplicate':   s.adds++; break;
+        case 'edit':        s.edits++; break;
+        case 'delete':      s.dels++; break;
+        case 'bulk-delete': s.dels += cnt; break;
+        case 'return':      s.returns++; break;
+        default: return;
+      }
+      s.total++;
+    });
+    const arr = Object.values(stats).sort((a,b) => b.launches - a.launches);
+    if (!arr.length) { el.innerHTML = '<div style="color:#888">За цей місяць дій у журналі немає.</div>'; return; }
+    let html = `<table style="width:100%;border-collapse:collapse">
+      <thead><tr>
+        <th ${thS}>Користувач</th><th ${thS}>Запуски</th><th ${thS}>Додавання</th>
+        <th ${thS}>Редагування</th><th ${thS}>Видалення</th><th ${thS}>Повернення</th>
+      </tr></thead><tbody>`;
+    arr.forEach(s => { html += `<tr>
+      <td ${tdS}>${escapeHtml(s.fio)}</td>
+      <td ${tdN} style="font-weight:700;color:var(--ok)">${s.launches}</td>
+      <td ${tdN}>${s.adds}</td>
+      <td ${tdN}>${s.edits}</td>
+      <td ${tdN}>${s.dels}</td>
+      <td ${tdN}>${s.returns}</td>
+    </tr>`; });
+    html += `</tbody></table>`;
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div style="color:#b91c1c">Не вдалося завантажити активність: ' + escapeHtml(e.message) + '</div>';
+  }
 }
 
 function exportMonthReport(selectedMonth) {
@@ -1974,6 +2029,7 @@ function saveCard() {
 const APP_VERSION = '1.2';
 const CHANGELOG = [
   { v:'1.2', date:'2026-06', items:[
+    'Детальна статистика активності користувачів у звіті: запуски, додавання, редагування, видалення, повернення за місяць',
     'Картка редагування рядка (✏️): усі поля об\'єкта згруповані по секціях',
     'Додавання нового запису через картку; ФІО створювача підставляється автоматично',
     'Авто-присвоєння ID, як раніше (A для ATM / K для ІПТ + номер)',
