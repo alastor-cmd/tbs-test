@@ -211,6 +211,8 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 .card-actions{margin-top:16px;display:flex;gap:8px;justify-content:flex-end;}
 .btn-edit{background:#0369a1;color:#fff;border:1px solid #0369a1;border-radius:4px;cursor:pointer;padding:1px 4px;font-size:11px;line-height:1.4;}
 .btn-edit:hover{background:#075985;}
+.version-badge{display:inline-block;background:rgba(255,255,255,.2);color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;cursor:pointer;margin-left:6px;vertical-align:middle;}
+.version-badge:hover{background:rgba(255,255,255,.35);}
 </style>
 </head>
 <body>
@@ -252,6 +254,7 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 <div id="appHeader" style="display:none">
   <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="rgba(255,255,255,.2)"/><rect x="10" y="14" width="28" height="20" rx="3" fill="white" opacity="0.9"/><rect x="14" y="22" width="8" height="8" rx="1" fill="#1e40af"/></svg>
   <h1>Редактор заявок ATM</h1>
+  <span class="version-badge" id="versionBadge" onclick="showChangelog()" title="Журнал змін">v1.2</span>
   <span class="db-status" id="dbStatus">● Завантаження...</span>
   <div class="user-badge">
     <strong id="headerUser"></strong>
@@ -1965,6 +1968,36 @@ function saveCard() {
   persistRow(cardRow, currentSheet==='active' ? 'ATM' : 'ZAP');
   render();
   closeModal();
+}
+
+// ===== Версіонність =====
+const APP_VERSION = '1.2';
+const CHANGELOG = [
+  { v:'1.2', date:'2026-06', items:[
+    'Картка редагування рядка (✏️): усі поля об\'єкта згруповані по секціях',
+    'Додавання нового запису через картку; ФІО створювача підставляється автоматично',
+    'Авто-присвоєння ID, як раніше (A для ATM / K для ІПТ + номер)',
+    'Етапи залежать від типу: Ліміти — для ATM, СБОН — для ІПТ (оновлюється миттєво при зміні типу)',
+    'Компактний режим (кнопка «Компактно») і візуальні групи стовпців',
+    'Закріплені заголовок таблиці та стовпці Тип / ID / Адреса',
+    'Поля дат — з календарем',
+    'Фільтр по ФІО більше не скидається при внесенні даних',
+  ]},
+  { v:'1.1', date:'2026-06', items:[
+    'Точкова архітектура даних: правки/видалення/запуск по одному рядку (без вимивання й дублів)',
+    'Окрема база даних; два хости (GitHub Pages + Firebase) з автодеплоєм',
+  ]},
+];
+function showChangelog() {
+  let html = `<div class="card-head"><h3>Журнал змін</h3></div>`;
+  CHANGELOG.forEach(rel => {
+    html += `<div class="card-group"><div class="card-group-title">Версія ${rel.v}${rel.date?' · '+rel.date:''}</div><ul style="margin:6px 0 0;padding-left:18px;font-size:13px;color:#333;line-height:1.5">`;
+    rel.items.forEach(it => html += `<li style="margin:3px 0">${it}</li>`);
+    html += `</ul></div>`;
+  });
+  html += `<div class="card-actions"><button class="btn btn-primary" onclick="closeModal()">Закрити</button></div>`;
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modal').classList.add('show');
 }
 
 function closeModal() { document.getElementById('modal').classList.remove('show'); }
