@@ -254,7 +254,7 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 <div id="appHeader" style="display:none">
   <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="rgba(255,255,255,.2)"/><rect x="10" y="14" width="28" height="20" rx="3" fill="white" opacity="0.9"/><rect x="14" y="22" width="8" height="8" rx="1" fill="#1e40af"/></svg>
   <h1>Редактор заявок ATM</h1>
-  <span class="version-badge" id="versionBadge" onclick="showChangelog()" title="Журнал змін">v1.2</span>
+  <span class="version-badge" id="versionBadge" onclick="showChangelog()" title="Журнал змін">v1.3</span>
   <span class="db-status" id="dbStatus">● Завантаження...</span>
   <div class="user-badge">
     <strong id="headerUser"></strong>
@@ -734,8 +734,9 @@ async function reloadDataKeepView() {
       from += 1000;
     }
     const dedup = arr => { const m=new Map(); arr.forEach((r,i)=>m.set(r.ID?('id:'+r.ID):('blank:'+i),r)); return [...m.values()]; };
+    const dedupZap = arr => { const m=new Map(); arr.forEach((r,i)=>m.set(r._sbId!=null?('sb:'+r._sbId):('row:'+i),r)); return [...m.values()]; };
     sheets.active = dedup(allRows.filter(r => r.sheet==='ATM').map(r => deserializeRow(r)));
-    sheets.zap    = dedup(allRows.filter(r => r.sheet==='ZAP').map(r => deserializeRow(r)));
+    sheets.zap    = dedupZap(allRows.filter(r => r.sheet==='ZAP').map(r => deserializeRow(r)));
     rebuildFilters(); render(); updateUI();
     const s = document.getElementById('dbStatus');
     if (s) s.textContent = '● Оновлено (синхронізація) · ' + new Date().toLocaleTimeString('uk-UA');
@@ -790,8 +791,13 @@ async function loadFromDB() {
       arr.forEach((r,i) => m.set(r.ID ? ('id:'+r.ID) : ('blank:'+i), r));
       return [...m.values()];
     };
+    const _dedupBySb = arr => {
+      const m = new Map();
+      arr.forEach((r,i) => m.set(r._sbId!=null ? ('sb:'+r._sbId) : ('row:'+i), r));
+      return [...m.values()];
+    };
     sheets.active = _dedupById(sheets.active);
-    sheets.zap    = _dedupById(sheets.zap);
+    sheets.zap    = _dedupBySb(sheets.zap);
     currentSheet = 'active';
     rebuildFilters(); render(); updateUI();
     setupRealtime();
@@ -2001,7 +2007,7 @@ function saveNewCard() {
   readCardInto(cardRow);
   let id = String(cardRow.ID || '').trim();
   if (!id) id = generateTempId(cardRow._type);
-  if (sheets[currentSheet].some(r => String(r.ID||'').trim() === id)) { alert('Запис з таким ID уже є в цьому списку.'); return; }
+  if (currentSheet==='active' && sheets.active.some(r => String(r.ID||'').trim() === id)) { alert('ATM з таким ID уже є в активних.'); return; }
   cardRow.ID = id;
   cardRow.__meta.modified = todayISO();
   sheets[currentSheet].push(cardRow);
@@ -2026,8 +2032,11 @@ function saveCard() {
 }
 
 // ===== Версіонність =====
-const APP_VERSION = '1.2';
+const APP_VERSION = '1.3';
 const CHANGELOG = [
+  { v:'1.3', date:'2026-07', items:[
+    'Секція «Запущені»: один і той самий ID тепер може повторюватись — рядки різняться датою запуску (можна запускати той самий ID повторно як окремі записи)',
+  ]},
   { v:'1.2', date:'2026-06', items:[
     'Детальна статистика активності користувачів у звіті: запуски, додавання, редагування, видалення, повернення за місяць',
     'Картка редагування рядка (✏️): усі поля об\'єкта згруповані по секціях',
