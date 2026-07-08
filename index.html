@@ -734,9 +734,8 @@ async function reloadDataKeepView() {
       from += 1000;
     }
     const dedup = arr => { const m=new Map(); arr.forEach((r,i)=>m.set(r.ID?('id:'+r.ID):('blank:'+i),r)); return [...m.values()]; };
-    const dedupZap = arr => { const m=new Map(); arr.forEach((r,i)=>m.set(r._sbId!=null?('sb:'+r._sbId):('row:'+i),r)); return [...m.values()]; };
     sheets.active = dedup(allRows.filter(r => r.sheet==='ATM').map(r => deserializeRow(r)));
-    sheets.zap    = dedupZap(allRows.filter(r => r.sheet==='ZAP').map(r => deserializeRow(r)));
+    sheets.zap    = dedup(allRows.filter(r => r.sheet==='ZAP').map(r => deserializeRow(r)));
     rebuildFilters(); render(); updateUI();
     const s = document.getElementById('dbStatus');
     if (s) s.textContent = '● Оновлено (синхронізація) · ' + new Date().toLocaleTimeString('uk-UA');
@@ -791,13 +790,8 @@ async function loadFromDB() {
       arr.forEach((r,i) => m.set(r.ID ? ('id:'+r.ID) : ('blank:'+i), r));
       return [...m.values()];
     };
-    const _dedupBySb = arr => {
-      const m = new Map();
-      arr.forEach((r,i) => m.set(r._sbId!=null ? ('sb:'+r._sbId) : ('row:'+i), r));
-      return [...m.values()];
-    };
     sheets.active = _dedupById(sheets.active);
-    sheets.zap    = _dedupBySb(sheets.zap);
+    sheets.zap    = _dedupById(sheets.zap);
     currentSheet = 'active';
     rebuildFilters(); render(); updateUI();
     setupRealtime();
@@ -1457,14 +1451,30 @@ async function deleteRow(idx) {
 async function launchRow(idx) {
   const row = sheets.active[idx];
   if (!row||!isReady(row)) return;
-  if (!row.__meta) row.__meta = {};
-  row.__meta.launchedAt = todayISO();
-  const atmId = row.ID;
-  sheets.zap.push(row);
-  sheets.active.splice(idx,1);
-  selected.delete(idx);
-  logAction('launch', atmId||'(без ID)', '→ ZAP запущено');
-  await persistRow(row, 'ZAP');
+  const atmId = String(row.ID||'').trim();
+  const existing = atmId ? sheets.zap.find(z => String(z.ID||'').trim() === atmId) : null;
+  if (existing) {
+    // Такий ID уже запущений — перезаписуємо наявний рядок новими даними
+    COLUMNS.forEach(c => { existing[c.key] = row[c.key]; });
+    if (!existing.__meta) existing.__meta = {};
+    existing.__meta.launchedAt = todayISO();
+    existing.__meta.modified = todayISO();
+    const oldSbId = row._sbId;
+    sheets.active.splice(idx,1);
+    selected.delete(idx);
+    logAction('launch', atmId, '→ ZAP (перезапис наявного запуску)');
+    await persistRow(existing, 'ZAP');
+    try { if (oldSbId != null) await sbDeleteById(oldSbId); } catch(e) { console.error('launch cleanup:', e); }
+  } else {
+    // Звичайний запуск — переносимо активний рядок у ZAP
+    if (!row.__meta) row.__meta = {};
+    row.__meta.launchedAt = todayISO();
+    sheets.zap.push(row);
+    sheets.active.splice(idx,1);
+    selected.delete(idx);
+    logAction('launch', atmId||'(без ID)', '→ ZAP запущено');
+    await persistRow(row, 'ZAP');
+  }
   document.getElementById('dbStatus').textContent =
     '● Збережено · ATM: ' + sheets.active.length + ' · ZAP: ' + sheets.zap.length +
     ' · ' + new Date().toLocaleTimeString('uk-UA');
@@ -2007,7 +2017,7 @@ function saveNewCard() {
   readCardInto(cardRow);
   let id = String(cardRow.ID || '').trim();
   if (!id) id = generateTempId(cardRow._type);
-  if (currentSheet==='active' && sheets.active.some(r => String(r.ID||'').trim() === id)) { alert('ATM з таким ID уже є в активних.'); return; }
+  if (sheets[currentSheet].some(r => String(r.ID||'').trim() === id)) { alert('Запис з таким ID уже є в цьому списку.'); return; }
   cardRow.ID = id;
   cardRow.__meta.modified = todayISO();
   sheets[currentSheet].push(cardRow);
@@ -2035,7 +2045,7 @@ function saveCard() {
 const APP_VERSION = '1.3';
 const CHANGELOG = [
   { v:'1.3', date:'2026-07', items:[
-    'Секція «Запущені»: один і той самий ID тепер може повторюватись — рядки різняться датою запуску (можна запускати той самий ID повторно як окремі записи)',
+    'Повторний запуск ID, який уже є в «Запущених», перезаписує наявний запис новими даними та новою датою запуску (без дублювання, без зміни бази)',
   ]},
   { v:'1.2', date:'2026-06', items:[
     'Детальна статистика активності користувачів у звіті: запуски, додавання, редагування, видалення, повернення за місяць',
