@@ -208,6 +208,7 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 .card-fields label.card-check{flex-direction:row;align-items:center;gap:7px;font-size:13px;color:#222;padding:4px 0;}
 .card-fields input[type=text],.card-fields input[type=date],.card-fields select,.card-fields textarea{padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;color:#222;font-family:inherit;}
 .card-fields input[type=checkbox]{width:18px;height:18px;}
+.card-mail{margin:0 0 14px;display:flex;gap:8px;}
 .card-actions{margin-top:16px;display:flex;gap:8px;justify-content:flex-end;}
 .btn-edit{background:#0369a1;color:#fff;border:1px solid #0369a1;border-radius:4px;cursor:pointer;padding:1px 4px;font-size:11px;line-height:1.4;}
 .btn-edit:hover{background:#075985;}
@@ -1987,6 +1988,8 @@ function renderCardBody() {
   const byKey = {}; COLUMNS.forEach(c => byKey[c.key] = c);
   const title = cardMode==='add' ? 'Новий запис' : ('Картка: ' + (cardRow.ID || '(без ID)'));
   let html = `<div class="card-head"><h3>${title}</h3></div>`;
+  if (cardMode !== 'add')
+    html += `<div class="card-mail"><button class="btn" onclick="mailSB()" title="Сформувати лист у поштовій програмі">✉️ Лист на СБ</button></div>`;
   CARD_GROUPS.forEach(g => {
     html += `<div class="card-group"><div class="card-group-title">${g.title}</div><div class="card-fields">`;
     g.keys.forEach(k => { const col = byKey[k]; if (col) html += cardFieldHtml(col, cardRow); });
@@ -1995,7 +1998,7 @@ function renderCardBody() {
   if (cardMode==='add')
     html += `<div class="card-actions"><button class="btn" onclick="cancelNewCard()">Скасувати</button><button class="btn btn-primary" onclick="saveNewCard()">Створити</button></div>`;
   else
-    html += `<div class="card-actions"><button class="btn" onclick="mailSB()" title="Сформувати лист у поштовій програмі">✉️ Лист на СБ</button><button class="btn" onclick="closeModal()">Закрити</button><button class="btn btn-primary" onclick="saveCard()">Зберегти</button></div>`;
+    html += `<div class="card-actions"><button class="btn" onclick="closeModal()">Закрити</button><button class="btn btn-primary" onclick="saveCard()">Зберегти</button></div>`;
   document.getElementById('modalContent').innerHTML = html;
   document.getElementById('modal').classList.add('show');
 }
