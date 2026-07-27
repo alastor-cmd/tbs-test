@@ -254,7 +254,7 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 <div id="appHeader" style="display:none">
   <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="rgba(255,255,255,.2)"/><rect x="10" y="14" width="28" height="20" rx="3" fill="white" opacity="0.9"/><rect x="14" y="22" width="8" height="8" rx="1" fill="#1e40af"/></svg>
   <h1>Редактор заявок ATM</h1>
-  <span class="version-badge" id="versionBadge" onclick="showChangelog()" title="Журнал змін">v1.3</span>
+  <span class="version-badge" id="versionBadge" onclick="showChangelog()" title="Журнал змін">v1.4</span>
   <span class="db-status" id="dbStatus">● Завантаження...</span>
   <div class="user-badge">
     <strong id="headerUser"></strong>
@@ -1995,10 +1995,30 @@ function renderCardBody() {
   if (cardMode==='add')
     html += `<div class="card-actions"><button class="btn" onclick="cancelNewCard()">Скасувати</button><button class="btn btn-primary" onclick="saveNewCard()">Створити</button></div>`;
   else
-    html += `<div class="card-actions"><button class="btn" onclick="closeModal()">Закрити</button><button class="btn btn-primary" onclick="saveCard()">Зберегти</button></div>`;
+    html += `<div class="card-actions"><button class="btn" onclick="mailSB()" title="Сформувати лист у поштовій програмі">✉️ Лист на СБ</button><button class="btn" onclick="closeModal()">Закрити</button><button class="btn btn-primary" onclick="saveCard()">Зберегти</button></div>`;
   document.getElementById('modalContent').innerHTML = html;
   document.getElementById('modal').classList.add('show');
 }
+// ---- Лист на СБ (відкриває Outlook із заповненими полями) ----
+const SB_EMAIL = '';  // TODO: вписати адресу СБ; поки порожньо — Outlook відкриється з пустим полем "Кому"
+function mailSB() {
+  if (!cardRow) return;
+  readCardInto(cardRow);                       // враховуємо щойно введені зміни
+  const id  = String(cardRow.ID    || '').trim();
+  const adr = String(cardRow.ADRES || '').trim();
+  const org = String(cardRow.Org   || '').trim();
+  const subject = 'Встановлення сигналізації на АТМ ' + (id || '');
+  const body = [
+    'Доброго дня.',
+    'Прохання встановити сигналізацію на АТМ',
+    id, adr, org
+  ].join('\r\n');
+  const link = 'mailto:' + SB_EMAIL +
+               '?subject=' + encodeURIComponent(subject) +
+               '&body='    + encodeURIComponent(body);
+  window.location.href = link;
+}
+
 function addCard() {
   if (!currentUser) { alert('Спершу увійдіть у систему.'); return; }
   cardRow = {};
@@ -2042,8 +2062,11 @@ function saveCard() {
 }
 
 // ===== Версіонність =====
-const APP_VERSION = '1.3';
+const APP_VERSION = '1.4';
 const CHANGELOG = [
+  { v:'1.4', date:'2026-07', items:[
+    'Кнопка «✉️ Лист на СБ» у картці банкомату — формує лист про встановлення сигналізації з ID, адресою та організацією і відкриває поштову програму (Outlook)',
+  ]},
   { v:'1.3', date:'2026-07', items:[
     'Повторний запуск ID, який уже є в «Запущених», перезаписує наявний запис новими даними та новою датою запуску (без дублювання, без зміни бази)',
   ]},
