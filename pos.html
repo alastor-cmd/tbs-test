@@ -521,10 +521,13 @@ async function deleteSerial() {
 // ===== ЛИСТ РЕНОМЕ =====
 const RENOME_EMAIL = '';   // TODO: вписати адресу отримувача; поки порожньо — Outlook відкриється з пустим «Кому»
 
-// відділення за нормалізованим ID терміналу
-function branchByIdMap() {
+// ID терміналу -> відділення + підпис слота (Каса N / Менеджер N)
+function infoByIdMap() {
   const m = new Map();
-  branches.forEach(b => b.windows.concat(b.managers).forEach(o => m.set(normId(o.id), b)));
+  branches.forEach(b => {
+    b.windows.forEach(o  => m.set(normId(o.id), { b, label: 'Каса ' + o.n,     ord: o.n }));
+    b.managers.forEach(o => m.set(normId(o.id), { b, label: 'Менеджер ' + o.n, ord: 100 + o.n }));
+  });
   return m;
 }
 // термінали останнього формування (за найсвіжішою міткою вивантаження)
@@ -545,15 +548,31 @@ function utf8b64(str) {
 function wrap76(s) { return s.replace(/(.{76})/g, '$1\r\n'); }
 
 function renomeBody(ids) {
-  const bm = branchByIdMap();
-  const blocks = ids.map(k => {
-    const b = bm.get(k) || {}, reg = registry.get(k) || {}, sn = serials.get(k);
-    return ['ТВБВ №' + (b.tvbv || '—'),
-            'Адреса - ' + (b.address || '—'),
-            'Контакт - ' + (b.contact || '—'),
-            'ІД термінала - ' + (reg.terminal_id || k),
-            'СН термінала - ' + (sn ? sn.serial : '—')].join('\r\n');
+  const info = infoByIdMap();
+  const groups = new Map();
+  ids.forEach(k => {
+    const i = info.get(k) || {}, b = i.b || {};
+    const key = b.tvbv || '—';
+    if (!groups.has(key)) groups.set(key, { b, items: [] });
+    groups.get(key).items.push({
+      label: i.label || '', ord: i.ord || 999,
+      id: (registry.get(k) || {}).terminal_id || k,
+      sn: (serials.get(k) || {}).serial || '—'
+    });
   });
+  const blocks = [...groups.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], 'uk', { numeric: true }))
+    .map(([tvbv, g]) => {
+      const lines = ['ТВБВ №' + tvbv,
+                     'Адреса - ' + (g.b.address || '—'),
+                     'Контакт - ' + (g.b.contact || '—')];
+      g.items.sort((x, y) => x.ord - y.ord).forEach(it => {
+        if (it.label) lines.push(it.label);
+        lines.push('ІД термінала - ' + it.id);
+        lines.push('СН термінала - ' + it.sn);
+      });
+      return lines.join('\r\n');
+    });
   return ['Доброго дня.',
           'Прохання сформувати заявку на залучення інженерів для заміни терміналів',
           '', blocks.join('\r\n\r\n')].join('\r\n');
@@ -628,7 +647,8 @@ async function buildExcel() {
   const H2 = ['', 'TerminalID', 'MerchantID', 'Строка 1', 'Строка 2', 'Строка 3', 'Строка 4',
               'TerminalID', 'MerchantID', '', '', '', '', '', '', ''];
   // «Ethernet …» будь-якого вигляду -> єдиний формат
-  const connType = v => /ethernet/i.test(v || '') ? 'ETHERNET internal' : (v || '');
+  const connType = v => /ethernet/i.test(v || '') ? 'ETHERNET internal'
+                     : (/gprs/i.test(v || '') ? 'GPRS' : (v || ''));
   // числові значення без ведучих нулів пишемо числом (як в оригіналі)
   const num = v => /^[1-9]\d{0,14}$/.test(v || '') ? Number(v) : (v || '');
 
