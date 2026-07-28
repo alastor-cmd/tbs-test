@@ -8,6 +8,7 @@
 <meta http-equiv="Expires" content="0">
 <title>ПОС-термінали · Ощадбанк</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;}
 body{background:#f0f5f1;color:#1a3a28;font-size:13px;}
@@ -65,7 +66,11 @@ tr:hover td{background:#f7fbf7;}
 .addr{color:#2a4a34;min-width:200px;}
 .contact{color:var(--muted);min-width:180px;}
 .id-cell{min-width:230px;}
-.id-btn{display:inline-block;margin:2px 3px 2px 0;padding:4px 8px;border:1px solid var(--border);background:#fff;color:#1a3a28;border-radius:5px;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer;transition:all .12s;}
+.id-btn{display:inline-flex;flex-direction:column;align-items:center;gap:1px;margin:2px 3px 2px 0;padding:3px 8px;border:1px solid var(--border);background:#fff;color:#1a3a28;border-radius:5px;cursor:pointer;transition:all .12s;line-height:1.25;}
+.id-btn .lbl{font-size:9px;font-weight:700;color:#7a8a80;letter-spacing:.02em;text-transform:uppercase;}
+.id-btn .val{font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+.id-btn.has-sn .lbl{color:#9a7a10;}
+.id-btn.exported .lbl{color:#2a7a4c;}
 .id-btn:hover{border-color:#2a7a4c;background:#f0f5f1;}
 .id-btn.has-sn{background:#fff8e0;border-color:#d4b022;color:#7a5c00;font-weight:600;}
 .id-btn.exported{background:#d8f5e3;border-color:#1a7a4c;color:#115c37;font-weight:700;}
@@ -220,6 +225,11 @@ let curId = null, curBranch = null;
 function setStatus(t) { document.getElementById('dbStatus').textContent = t; }
 function setImport(t) { document.getElementById('importStatus').textContent = t; }
 function norm(v) { return v === null || v === undefined ? '' : String(v).trim(); }
+function normList(a) {
+  return (Array.isArray(a) ? a : []).map((o, i) =>
+    typeof o === 'string' ? { n: i + 1, id: norm(o) } : { n: o && o.n ? o.n : i + 1, id: norm(o && o.id) }
+  ).filter(o => o.id !== '');
+}
 
 // ===== ЗАВАНТАЖЕННЯ =====
 async function loadAll() {
@@ -232,8 +242,7 @@ async function loadAll() {
     ]);
     branches = b.map(r => ({
       tvbv: norm(r.tvbv), address: norm(r.address), contact: norm(r.contact),
-      windows: Array.isArray(r.windows) ? r.windows : [],
-      managers: Array.isArray(r.managers) ? r.managers : []
+      windows: normList(r.windows), managers: normList(r.managers)
     }));
     registry = new Map(reg.map(r => [norm(r.terminal_id), r]));
     serials  = new Map(sn.map(r => [norm(r.terminal_id), { serial: norm(r.serial), exported_at: r.exported_at || null }]));
@@ -271,7 +280,7 @@ function importBranches(input) {
       for (let i = 1; i < aoa.length; i++) {
         const r = aoa[i]; if (!r) continue;
         const tvbv = norm(r[0]); if (!tvbv) continue;
-        const pick = idxs => idxs.map(i2 => norm(r[i2])).filter(v => v !== '');
+        const pick = idxs => idxs.map((i2, k) => ({ n: k + 1, id: norm(r[i2]) })).filter(o => o.id !== '');
         rows.push({ tvbv, address: norm(r[1]), contact: norm(r[2]),
                     windows: pick(wIdx), managers: pick(mIdx) });
       }
@@ -285,11 +294,15 @@ function importBranches(input) {
         dupCount++;
         if (!ex.address && r.address) ex.address = r.address;
         if (!ex.contact && r.contact) ex.contact = r.contact;
-        const uni = (a, b) => [...new Set(a.concat(b))];
+        const uni = (a, b) => {
+          const m = new Map(a.map(o => [o.id, o]));
+          b.forEach(o => { if (!m.has(o.id)) m.set(o.id, o); });
+          return [...m.values()].sort((x, y) => x.n - y.n);
+        };
         ex.windows  = uni(ex.windows,  r.windows);
         ex.managers = uni(ex.managers, r.managers);
       });
-      byT.forEach(r => { const w = new Set(r.windows); r.managers = r.managers.filter(id => !w.has(id)); });
+      byT.forEach(r => { const w = new Set(r.windows.map(o => o.id)); r.managers = r.managers.filter(o => !w.has(o.id)); });
       const merged = [...byT.values()];
 
       setImport(`знайдено ${merged.length} відділень${dupCount ? ` (об'єднано ${dupCount} дубл.)` : ''}, зберігаю…`);
@@ -360,11 +373,13 @@ function idTitle(id) {
   if (s && s.exported_at) parts.push('вивантажено у файл');
   return parts.join(' · ') || 'натисніть, щоб ввести серійний номер';
 }
-function idButtons(list, tvbv) {
+function idButtons(list, tvbv, label) {
   if (!list || !list.length) return '<span style="color:#9aa89e">—</span>';
-  return list.map(id =>
-    `<button class="${idClass(id)}" title="${idTitle(id).replace(/"/g, '&quot;')}" onclick="openSerial('${String(id).replace(/'/g, "\\'")}','${String(tvbv).replace(/'/g, "\\'")}')">${id}</button>`
-  ).join('');
+  const q = s => String(s).replace(/'/g, "\\'");
+  return list.map(o => {
+    const slot = label + ' ' + o.n;
+    return `<button class="${idClass(o.id)}" title="${(slot + ' · ' + idTitle(o.id)).replace(/"/g, '&quot;')}" onclick="openSerial('${q(o.id)}','${q(tvbv)}','${q(slot)}')"><span class="lbl">${slot}</span><span class="val">${o.id}</span></button>`;
+  }).join('');
 }
 function render() {
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
@@ -373,12 +388,12 @@ function render() {
   if (q) list = list.filter(b =>
     b.tvbv.toLowerCase().includes(q) || b.address.toLowerCase().includes(q) ||
     b.contact.toLowerCase().includes(q) ||
-    b.windows.concat(b.managers).some(id => String(id).toLowerCase().includes(q)));
+    b.windows.concat(b.managers).some(o => String(o.id).toLowerCase().includes(q)));
   if (f) list = list.filter(b => {
     const ids = b.windows.concat(b.managers);
-    if (f === 'sn')       return ids.some(id => serials.has(id));
-    if (f === 'nosn')     return !ids.some(id => serials.has(id));
-    if (f === 'exported') return ids.some(id => { const s = serials.get(id); return s && s.exported_at; });
+    if (f === 'sn')       return ids.some(o => serials.has(o.id));
+    if (f === 'nosn')     return !ids.some(o => serials.has(o.id));
+    if (f === 'exported') return ids.some(o => { const s = serials.get(o.id); return s && s.exported_at; });
     return true;
   });
   const tb = document.getElementById('tbody');
@@ -386,8 +401,8 @@ function render() {
     <td class="tvbv">${b.tvbv}</td>
     <td class="addr">${b.address || '—'}</td>
     <td class="contact">${b.contact || '—'}</td>
-    <td class="id-cell">${idButtons(b.windows, b.tvbv)}</td>
-    <td class="id-cell">${idButtons(b.managers, b.tvbv)}</td>
+    <td class="id-cell">${idButtons(b.windows, b.tvbv, 'Каса')}</td>
+    <td class="id-cell">${idButtons(b.managers, b.tvbv, 'Менеджер')}</td>
   </tr>`).join('');
   const em = document.getElementById('emptyMsg');
   if (!list.length) {
@@ -399,7 +414,7 @@ function render() {
 }
 function allIds() {
   const s = new Set();
-  branches.forEach(b => b.windows.concat(b.managers).forEach(id => s.add(id)));
+  branches.forEach(b => b.windows.concat(b.managers).forEach(o => s.add(o.id)));
   return s;
 }
 function updateStats() {
@@ -415,12 +430,12 @@ function updateStats() {
 }
 
 // ===== СЕРІЙНИЙ НОМЕР =====
-function openSerial(id, tvbv) {
+function openSerial(id, tvbv, slot) {
   curId = id; curBranch = tvbv;
   const s = serials.get(id);
   const reg = registry.get(id);
   document.getElementById('mTitle').textContent = 'Термінал ' + id;
-  document.getElementById('mSub').textContent = 'ТВБВ №' + tvbv;
+  document.getElementById('mSub').textContent = (slot ? slot + ' · ' : '') + 'ТВБВ №' + tvbv;
   const info = document.getElementById('mInfo');
   if (reg) {
     info.className = 'info-box';
@@ -507,32 +522,69 @@ async function buildExcel() {
               'Тип підключення (Ethernet, GPRS)', 'IP Address', 'Subnet Mask', 'Default Gateway', 'DHCP'];
   const H2 = ['', 'TerminalID', 'MerchantID', 'Строка 1', 'Строка 2', 'Строка 3', 'Строка 4',
               'TerminalID', 'MerchantID', '', '', '', '', '', '', ''];
-  const aoa = [H1, H2];
+  // «Ethernet …» будь-якого вигляду -> єдиний формат
+  const connType = v => /ethernet/i.test(v || '') ? 'ETHERNET internal' : (v || '');
+  // числові значення без ведучих нулів пишемо числом (як в оригіналі)
+  const num = v => /^[1-9]\d{0,14}$/.test(v || '') ? Number(v) : (v || '');
+
+  const HEAD_FILL = 'FFCCC0DA';   // Accent4, світліше 60%
+  const DATA_FILL = 'FFDCE6F1';   // Accent1, світліше 80%
+  const thin = { style: 'thin' };
+  const BORDER = { top: thin, left: thin, bottom: thin, right: thin };
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('#1');
+  ws.columns = [7.22, 12.22, 12.22, 16, 20.22, 26.22, 27.78, 12.22, 12.22, 33.22, 12, 17.78, 15.22, 16.22, 15.78, 8]
+    .map(w => ({ width: w }));
+
+  ws.addRow(H1); ws.addRow(H2);
   ready.forEach((id, i) => {
-    const r = registry.get(id), s = serials.get(id);
-    aoa.push([i + 1, r.terminal_id, r.merchant_id, r.d1, r.d2, r.d3, r.d4,
-              r.sbon_tid, r.sbon_aid, s.serial, r.send_time, r.conn_type,
-              r.ip, r.mask, r.gw, r.dhcp]);
+    const r = registry.get(id), sn = serials.get(id);
+    ws.addRow([i + 1, num(r.terminal_id), num(r.merchant_id), r.d1, r.d2, r.d3, r.d4,
+               r.sbon_tid, r.sbon_aid, sn.serial, num(r.send_time), connType(r.conn_type),
+               r.ip, r.mask, r.gw, r.dhcp]);
   });
 
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!merges'] = [
-    { s: { r: 0, c: 0 },  e: { r: 1, c: 0 } },
-    { s: { r: 0, c: 1 },  e: { r: 0, c: 2 } },
-    { s: { r: 0, c: 7 },  e: { r: 0, c: 8 } },
-    { s: { r: 0, c: 9 },  e: { r: 1, c: 9 } },
-    { s: { r: 0, c: 10 }, e: { r: 1, c: 10 } },
-    { s: { r: 0, c: 11 }, e: { r: 1, c: 11 } },
-    { s: { r: 0, c: 12 }, e: { r: 1, c: 12 } },
-    { s: { r: 0, c: 13 }, e: { r: 1, c: 13 } },
-    { s: { r: 0, c: 14 }, e: { r: 1, c: 14 } },
-    { s: { r: 0, c: 15 }, e: { r: 1, c: 15 } }
-  ];
-  ws['!cols'] = [7, 13, 13, 16, 20, 16, 26, 12, 12, 26, 12, 22, 14, 14, 14, 7].map(w => ({ wch: w }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '#1');
+  ws.mergeCells('A1:A2'); ws.mergeCells('B1:C1'); ws.mergeCells('H1:I1');
+  ['J', 'K', 'L', 'M', 'N', 'O', 'P'].forEach(c => ws.mergeCells(`${c}1:${c}2`));
+
+  // Шапка
+  const centered = new Set([1, 2, 8, 10, 11, 12, 16]);   // A,B,H,J,K,L,P
+  const wrapped  = new Set([11, 12]);                    // K,L
+  for (let rn = 1; rn <= 2; rn++) {
+    const row = ws.getRow(rn);
+    for (let c = 1; c <= 16; c++) {
+      const cell = row.getCell(c);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: HEAD_FILL } };
+      cell.font = { name: 'Calibri', size: 11 };
+      cell.border = BORDER;
+      cell.alignment = { horizontal: (rn === 1 && centered.has(c)) ? 'center' : 'left',
+                         vertical: 'bottom', wrapText: rn === 1 && wrapped.has(c) };
+    }
+  }
+  ws.getRow(2).height = 14.25;
+
+  // Дані
+  for (let rn = 3; rn <= ws.rowCount; rn++) {
+    const row = ws.getRow(rn);
+    row.height = 13.5;
+    for (let c = 1; c <= 16; c++) {
+      const cell = row.getCell(c);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DATA_FILL } };
+      cell.font = { name: 'Arial', size: 10 };
+      cell.border = BORDER;
+      cell.alignment = { horizontal: c === 1 ? 'left' : 'center', vertical: 'center' };
+    }
+  }
+
   const stamp = ddmmyyyy(new Date());
-  XLSX.writeFile(wb, `POS_CASH_СБОН_Профили_${stamp}_Desk.xlsx`);
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `POS_CASH_СБОН_Профили_${stamp}_Desk.xlsx`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
 
   // позначаємо як вивантажені
   try {
