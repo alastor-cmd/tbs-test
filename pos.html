@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>ПОС-термінали · Ощадбанк</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;}
+body{background:#f0f5f1;color:#1a3a28;font-size:13px;}
+:root{
+  --accent:#1a3a28;--accent2:#2a7a4c;--ok:#1a7a4c;--warn:#a02020;
+  --border:#c8dac0;--border2:#e0ece0;--surface:#fff;--muted:#5a7a62;
+  --bg:#f0f5f1;--gold:#b8960c;
+}
+.header{background:#1a3a28;color:#e8f5ee;padding:0 20px;display:flex;align-items:center;gap:12px;height:52px;border-bottom:2px solid #2a5a3c;}
+.header h1{font-size:14px;font-weight:700;color:#e8f5ee;}
+.header-logo{width:30px;height:30px;background:#2a5a3c;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#7ec99a;flex-shrink:0;}
+.header-sep{width:1px;height:18px;background:#2a5a3c;}
+.header-sub{font-size:11px;color:#5a9470;font-weight:500;}
+.db-status{font-size:11px;color:#5a9470;margin-left:6px;}
+.header .back{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#9ecfb0;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;text-decoration:none;font-weight:500;margin-left:auto;}
+.header .back:hover{background:rgba(255,255,255,.15);color:#e8f5ee;}
+.version-badge{background:rgba(255,255,255,.1);color:#9ecfb0;padding:3px 8px;border-radius:5px;font-size:11px;cursor:pointer;font-weight:600;}
+
+.upload-section{background:#fff;border-bottom:1px solid var(--border);padding:14px 20px;}
+.upload-title{font-size:12px;font-weight:700;margin-bottom:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+.upload-grid{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.upload-card{border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:#f5f8f5;min-width:190px;cursor:pointer;transition:all .15s;position:relative;display:block;}
+.upload-card:hover{border-color:var(--accent2);background:#eaf3ea;}
+.upload-card.loaded{border-color:var(--ok);background:#f0fdf4;border-width:2px;}
+.upload-card-title{font-size:12px;font-weight:700;color:#1a3a28;}
+.upload-card-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.upload-card input{display:none;}
+.load-status{font-size:12px;color:var(--muted);}
+
+.toolbar{padding:10px 20px;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap;box-shadow:0 1px 3px rgba(26,58,40,.04);}
+.btn{padding:6px 12px;border:1px solid var(--border);background:#fff;color:#2a4a34;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit;font-weight:500;transition:all .15s;}
+.btn:hover{background:#f0f5f1;border-color:#2a7a4c;color:#1a3a28;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-green{background:#1a7a4c;color:#fff;border-color:#1a7a4c;}
+.btn-green:hover{background:#156040;}
+.btn-danger{background:#fff;color:#a02020;border-color:#e0bcbc;}
+.btn-danger:hover{background:#fdf0f0;border-color:#a02020;}
+.search-input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;width:230px;outline:none;}
+.search-input:focus{border-color:#2a7a4c;box-shadow:0 0 0 3px rgba(42,122,76,.1);}
+select.filter{padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;color:#2a4a34;outline:none;}
+.toolbar-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.total-info{font-size:12px;color:var(--muted);}
+
+.stats-row{display:flex;gap:10px;padding:12px 20px;background:#f5f8f5;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.stat-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 16px;min-width:120px;}
+.stat-val{font-size:19px;font-weight:800;color:#1a3a28;}
+.stat-lbl{font-size:11px;color:var(--muted);margin-top:2px;}
+
+.table-wrap{padding:14px 20px 40px;}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+th{background:#eaf3ea;color:#1a3a28;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2;}
+td{padding:8px 10px;border-bottom:1px solid var(--border2);vertical-align:top;}
+tr:hover td{background:#f7fbf7;}
+.tvbv{font-weight:700;white-space:nowrap;}
+.addr{color:#2a4a34;min-width:200px;}
+.contact{color:var(--muted);min-width:180px;}
+.id-cell{min-width:230px;}
+.id-btn{display:inline-block;margin:2px 3px 2px 0;padding:4px 8px;border:1px solid var(--border);background:#fff;color:#1a3a28;border-radius:5px;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer;transition:all .12s;}
+.id-btn:hover{border-color:#2a7a4c;background:#f0f5f1;}
+.id-btn.has-sn{background:#fff8e0;border-color:#d4b022;color:#7a5c00;font-weight:600;}
+.id-btn.exported{background:#d8f5e3;border-color:#1a7a4c;color:#115c37;font-weight:700;}
+.id-btn.absent{border-style:dashed;color:#9aa89e;background:#fafbfa;}
+.empty{padding:40px;text-align:center;color:var(--muted);}
+
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(16,32,22,.45);z-index:50;align-items:center;justify-content:center;padding:16px;}
+.modal-bg.show{display:flex;}
+.modal{background:#fff;border-radius:12px;max-width:460px;width:100%;padding:20px;box-shadow:0 12px 40px rgba(0,0,0,.2);}
+.modal h3{font-size:15px;margin-bottom:4px;}
+.modal .sub{font-size:12px;color:var(--muted);margin-bottom:14px;}
+.field-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;display:block;}
+.modal input[type=text]{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;font-size:14px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;outline:none;letter-spacing:.02em;}
+.modal input[type=text]:focus{border-color:#2a7a4c;box-shadow:0 0 0 3px rgba(42,122,76,.12);}
+.hint{font-size:11px;color:var(--muted);margin-top:6px;}
+.hint.err{color:var(--warn);}
+.info-box{background:#f5f8f5;border:1px solid var(--border2);border-radius:8px;padding:10px 12px;font-size:12px;margin-bottom:14px;line-height:1.55;}
+.info-box.warn{background:#fdf6f6;border-color:#e8c8c8;color:#7a2020;}
+.modal-actions{margin-top:16px;display:flex;gap:8px;justify-content:flex-end;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">ОЩ</div>
+  <h1>ПОС-термінали</h1>
+  <div class="header-sep"></div>
+  <div class="header-sub">Профілі CASH + СБОН</div>
+  <span class="version-badge">v1.0</span>
+  <span class="db-status" id="dbStatus">завантаження…</span>
+  <a class="back" href="index.html">← До таблиці ТБС</a>
+</div>
+
+<div class="upload-section">
+  <div class="upload-title">Джерела даних</div>
+  <div class="upload-grid">
+    <label class="upload-card" id="cardBranches">
+      <div class="upload-card-title">Додаток 1 — відділення</div>
+      <div class="upload-card-sub" id="subBranches">ТВБВ, адреси, ID кас і менеджерів</div>
+      <input type="file" accept=".xlsx,.xls" onchange="importBranches(this)">
+    </label>
+    <label class="upload-card" id="cardRegistry">
+      <div class="upload-card-title">Реєстр cash_POS</div>
+      <div class="upload-card-sub" id="subRegistry">профілі терміналів для Excel</div>
+      <input type="file" accept=".xls,.xlsx" onchange="importRegistry(this)">
+    </label>
+    <span class="load-status" id="importStatus"></span>
+  </div>
+</div>
+
+<div class="toolbar">
+  <input class="search-input" id="searchInput" placeholder="Пошук: ТВБВ, адреса або ID" oninput="render()">
+  <select class="filter" id="filterState" onchange="render()">
+    <option value="">Усі відділення</option>
+    <option value="sn">Є введені СН</option>
+    <option value="nosn">Без жодного СН</option>
+    <option value="exported">Є вивантажені</option>
+  </select>
+  <div class="toolbar-right">
+    <span class="total-info" id="totalInfo"></span>
+    <button class="btn btn-green" id="btnBuild" onclick="buildExcel()">Сформувати Excel</button>
+  </div>
+</div>
+
+<div class="stats-row">
+  <div class="stat-card"><div class="stat-val" id="stBranches">—</div><div class="stat-lbl">Відділень</div></div>
+  <div class="stat-card"><div class="stat-val" id="stIds">—</div><div class="stat-lbl">Ідентифікаторів</div></div>
+  <div class="stat-card"><div class="stat-val" id="stInReg">—</div><div class="stat-lbl">Є в реєстрі</div></div>
+  <div class="stat-card"><div class="stat-val" id="stSn">—</div><div class="stat-lbl">Із серійним номером</div></div>
+  <div class="stat-card"><div class="stat-val" id="stExp">—</div><div class="stat-lbl">Вивантажено у файл</div></div>
+</div>
+
+<div class="table-wrap">
+  <table id="tbl">
+    <thead><tr>
+      <th style="width:100px">ТВБВ №</th>
+      <th>Адреса відділення</th>
+      <th>Контактна особа</th>
+      <th>Каси</th>
+      <th>Менеджери</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="emptyMsg" style="display:none"></div>
+</div>
+
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="mTitle">Серійний номер</h3>
+    <div class="sub" id="mSub"></div>
+    <div class="info-box" id="mInfo"></div>
+    <label class="field-lbl" for="mSerial">Серійний номер терміналу</label>
+    <input type="text" id="mSerial" autocomplete="off" spellcheck="false" placeholder="напр. 250154417011337370330409">
+    <div class="hint" id="mHint">Дозволені лише латинські літери та цифри.</div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="mDel" onclick="deleteSerial()">Видалити</button>
+      <button class="btn" onclick="closeModal()">Закрити</button>
+      <button class="btn btn-green" onclick="saveSerial()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== SUPABASE =====
+const SB_URL = 'https://bdluvpnkxkaxtrbgskio.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkbHV2cG5reGtheHRyYmdza2lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMDM3MDYsImV4cCI6MjA5NTY3OTcwNn0.ov7f-2wEQ8WCJMABNj9f3O9_11zkUOlwTzVINzGsKs4';
+
+const T_BRANCH = 'pos_branches_test';
+const T_REG    = 'pos_registry_test';
+const T_SN     = 'pos_serials_test';
+
+const sbHeaders = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+
+async function sbGetAll(table, order) {
+  const out = []; const PAGE = 1000; let from = 0;
+  while (true) {
+    const url = `${SB_URL}/rest/v1/${table}?select=*` + (order ? `&order=${order}` : '');
+    const r = await fetch(url, { headers: Object.assign({}, sbHeaders, {
+      'Range-Unit': 'items', 'Range': `${from}-${from + PAGE - 1}`, 'Prefer': 'count=none' }) });
+    if (!r.ok) throw new Error(await r.text());
+    const chunk = await r.json();
+    out.push(...chunk);
+    if (chunk.length < PAGE) return out;
+    from += PAGE;
+  }
+}
+async function sbUpsert(table, rows, onConflict) {
+  const arr = Array.isArray(rows) ? rows : [rows];
+  const BATCH = 500;
+  for (let i = 0; i < arr.length; i += BATCH) {
+    const r = await fetch(`${SB_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
+      method: 'POST',
+      headers: Object.assign({}, sbHeaders, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify(arr.slice(i, i + BATCH))
+    });
+    if (!r.ok) throw new Error(await r.text());
+    setStatus(`збереження… ${Math.min(i + BATCH, arr.length)} / ${arr.length}`);
+  }
+}
+async function sbDeleteEq(table, col, val) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${col}=eq.${encodeURIComponent(val)}`, {
+    method: 'DELETE', headers: Object.assign({}, sbHeaders, { 'Prefer': 'return=minimal' }) });
+  if (!r.ok) throw new Error(await r.text());
+}
+
+// ===== STATE =====
+let branches = [];              // [{tvbv,address,contact,windows[],managers[]}]
+let registry = new Map();       // terminal_id -> row
+let serials  = new Map();       // terminal_id -> {serial, exported_at}
+let curId = null, curBranch = null;
+
+function setStatus(t) { document.getElementById('dbStatus').textContent = t; }
+function setImport(t) { document.getElementById('importStatus').textContent = t; }
+function norm(v) { return v === null || v === undefined ? '' : String(v).trim(); }
+
+// ===== ЗАВАНТАЖЕННЯ =====
+async function loadAll() {
+  try {
+    setStatus('завантаження…');
+    const [b, reg, sn] = await Promise.all([
+      sbGetAll(T_BRANCH, 'tvbv.asc'),
+      sbGetAll(T_REG, 'terminal_id.asc'),
+      sbGetAll(T_SN, 'terminal_id.asc')
+    ]);
+    branches = b.map(r => ({
+      tvbv: norm(r.tvbv), address: norm(r.address), contact: norm(r.contact),
+      windows: Array.isArray(r.windows) ? r.windows : [],
+      managers: Array.isArray(r.managers) ? r.managers : []
+    }));
+    registry = new Map(reg.map(r => [norm(r.terminal_id), r]));
+    serials  = new Map(sn.map(r => [norm(r.terminal_id), { serial: norm(r.serial), exported_at: r.exported_at || null }]));
+    document.getElementById('cardBranches').classList.toggle('loaded', branches.length > 0);
+    document.getElementById('cardRegistry').classList.toggle('loaded', registry.size > 0);
+    document.getElementById('subBranches').textContent = branches.length ? `${branches.length} відділень у базі` : 'ТВБВ, адреси, ID кас і менеджерів';
+    document.getElementById('subRegistry').textContent = registry.size ? `${registry.size} терміналів у базі` : 'профілі терміналів для Excel';
+    setStatus('● готово · ' + new Date().toLocaleTimeString('uk-UA'));
+    render();
+  } catch (e) {
+    setStatus('помилка завантаження');
+    alert('Не вдалося завантажити дані.\n\n' + e.message + '\n\nЙмовірно, ще не створені таблиці в Supabase.');
+  }
+}
+
+// ===== ІМПОРТ: ДОДАТОК 1 =====
+function importBranches(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      setImport('читання файлу…');
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+      if (!aoa.length) throw new Error('Порожній аркуш.');
+      const hdr = aoa[0].map(h => norm(h).toLowerCase());
+      const wIdx = [], mIdx = [];
+      hdr.forEach((h, i) => {
+        if (h.includes('вікно')) wIdx.push(i);
+        else if (h.includes('менеджер')) mIdx.push(i);
+      });
+      if (!wIdx.length && !mIdx.length) throw new Error('Не знайдено колонок «Вікно…» та «Менеджер…». Перевірте, що це Додаток 1.');
+      const rows = [];
+      for (let i = 1; i < aoa.length; i++) {
+        const r = aoa[i]; if (!r) continue;
+        const tvbv = norm(r[0]); if (!tvbv) continue;
+        const pick = idxs => idxs.map(i2 => norm(r[i2])).filter(v => v !== '');
+        rows.push({ tvbv, address: norm(r[1]), contact: norm(r[2]),
+                    windows: pick(wIdx), managers: pick(mIdx) });
+      }
+      if (!rows.length) throw new Error('Не знайдено жодного рядка з ТВБВ.');
+      setImport(`знайдено ${rows.length} відділень, зберігаю…`);
+      await sbUpsert(T_BRANCH, rows, 'tvbv');
+      setImport(`✓ імпортовано ${rows.length} відділень`);
+      await loadAll();
+    } catch (err) {
+      setImport(''); alert('Помилка імпорту Додатка 1:\n\n' + err.message);
+    } finally { input.value = ''; }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ===== ІМПОРТ: РЕЄСТР cash_POS =====
+function importRegistry(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      setImport('читання реєстру…');
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+      // Шапка займає два рядки: шукаємо рядок, де є "TerminalID"
+      let head = -1;
+      for (let i = 0; i < Math.min(aoa.length, 10); i++) {
+        if (aoa[i].some(c => norm(c).toLowerCase().replace(/\s/g, '') === 'terminalid')) { head = i; break; }
+      }
+      if (head < 0) throw new Error('Не знайдено рядок шапки з «TerminalID». Перевірте, що це реєстр cash_POS.');
+      const rows = [], seen = new Set();
+      for (let i = head + 1; i < aoa.length; i++) {
+        const r = aoa[i]; if (!r) continue;
+        const tid = norm(r[1]); if (!tid || seen.has(tid)) continue;
+        seen.add(tid);
+        rows.push({
+          terminal_id: tid, merchant_id: norm(r[2]),
+          d1: norm(r[3]), d2: norm(r[4]), d3: norm(r[5]), d4: norm(r[6]),
+          sbon_tid: norm(r[7]), sbon_aid: norm(r[8]),
+          send_time: norm(r[9]), conn_type: norm(r[10]),
+          ip: norm(r[11]), mask: norm(r[12]), gw: norm(r[13]), dhcp: norm(r[14])
+        });
+      }
+      if (!rows.length) throw new Error('Не знайдено жодного терміналу.');
+      setImport(`знайдено ${rows.length} терміналів, зберігаю…`);
+      await sbUpsert(T_REG, rows, 'terminal_id');
+      setImport(`✓ імпортовано ${rows.length} терміналів`);
+      await loadAll();
+    } catch (err) {
+      setImport(''); alert('Помилка імпорту реєстру:\n\n' + err.message);
+    } finally { input.value = ''; }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ===== ВІДОБРАЖЕННЯ =====
+function idClass(id) {
+  const s = serials.get(id);
+  if (s && s.exported_at) return 'id-btn exported';
+  if (s) return 'id-btn has-sn';
+  if (!registry.has(id)) return 'id-btn absent';
+  return 'id-btn';
+}
+function idTitle(id) {
+  const s = serials.get(id);
+  const parts = [];
+  if (!registry.has(id)) parts.push('немає в реєстрі — у файл не потрапить');
+  if (s) parts.push('СН: ' + s.serial);
+  if (s && s.exported_at) parts.push('вивантажено у файл');
+  return parts.join(' · ') || 'натисніть, щоб ввести серійний номер';
+}
+function idButtons(list, tvbv) {
+  if (!list || !list.length) return '<span style="color:#9aa89e">—</span>';
+  return list.map(id =>
+    `<button class="${idClass(id)}" title="${idTitle(id).replace(/"/g, '&quot;')}" onclick="openSerial('${String(id).replace(/'/g, "\\'")}','${String(tvbv).replace(/'/g, "\\'")}')">${id}</button>`
+  ).join('');
+}
+function render() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const f = document.getElementById('filterState').value;
+  let list = branches;
+  if (q) list = list.filter(b =>
+    b.tvbv.toLowerCase().includes(q) || b.address.toLowerCase().includes(q) ||
+    b.contact.toLowerCase().includes(q) ||
+    b.windows.concat(b.managers).some(id => String(id).toLowerCase().includes(q)));
+  if (f) list = list.filter(b => {
+    const ids = b.windows.concat(b.managers);
+    if (f === 'sn')       return ids.some(id => serials.has(id));
+    if (f === 'nosn')     return !ids.some(id => serials.has(id));
+    if (f === 'exported') return ids.some(id => { const s = serials.get(id); return s && s.exported_at; });
+    return true;
+  });
+  const tb = document.getElementById('tbody');
+  tb.innerHTML = list.map(b => `<tr>
+    <td class="tvbv">${b.tvbv}</td>
+    <td class="addr">${b.address || '—'}</td>
+    <td class="contact">${b.contact || '—'}</td>
+    <td class="id-cell">${idButtons(b.windows, b.tvbv)}</td>
+    <td class="id-cell">${idButtons(b.managers, b.tvbv)}</td>
+  </tr>`).join('');
+  const em = document.getElementById('emptyMsg');
+  if (!list.length) {
+    em.style.display = 'block';
+    em.textContent = branches.length ? 'За цим запитом нічого не знайдено.' : 'Дані ще не завантажені — імпортуйте Додаток 1 і реєстр cash_POS.';
+  } else em.style.display = 'none';
+  document.getElementById('totalInfo').textContent = `Показано: ${list.length} з ${branches.length}`;
+  updateStats();
+}
+function allIds() {
+  const s = new Set();
+  branches.forEach(b => b.windows.concat(b.managers).forEach(id => s.add(id)));
+  return s;
+}
+function updateStats() {
+  const ids = allIds();
+  let inReg = 0; ids.forEach(id => { if (registry.has(id)) inReg++; });
+  let withSn = 0, exp = 0;
+  ids.forEach(id => { const s = serials.get(id); if (s) { withSn++; if (s.exported_at) exp++; } });
+  document.getElementById('stBranches').textContent = branches.length;
+  document.getElementById('stIds').textContent = ids.size;
+  document.getElementById('stInReg').textContent = inReg;
+  document.getElementById('stSn').textContent = withSn;
+  document.getElementById('stExp').textContent = exp;
+}
+
+// ===== СЕРІЙНИЙ НОМЕР =====
+function openSerial(id, tvbv) {
+  curId = id; curBranch = tvbv;
+  const s = serials.get(id);
+  const reg = registry.get(id);
+  document.getElementById('mTitle').textContent = 'Термінал ' + id;
+  document.getElementById('mSub').textContent = 'ТВБВ №' + tvbv;
+  const info = document.getElementById('mInfo');
+  if (reg) {
+    info.className = 'info-box';
+    info.innerHTML = `<b>У реєстрі:</b> MerchantID ${reg.merchant_id || '—'} · СБОН ${reg.sbon_tid || '—'} / ${reg.sbon_aid || '—'}<br>` +
+                     `${[reg.d2, reg.d3, reg.d4].filter(Boolean).join(', ') || '—'}`;
+  } else {
+    info.className = 'info-box warn';
+    info.innerHTML = '<b>Немає в реєстрі cash_POS.</b> Серійний номер збережеться, але цей термінал не потрапить у сформований файл.';
+  }
+  const inp = document.getElementById('mSerial');
+  inp.value = s ? s.serial : '';
+  document.getElementById('mDel').style.display = s ? '' : 'none';
+  const hint = document.getElementById('mHint');
+  hint.className = 'hint';
+  hint.textContent = s && s.exported_at ? 'Уже вивантажено у файл. Зміна СН зніме позначку вивантаження.'
+                                        : 'Дозволені лише латинські літери та цифри.';
+  document.getElementById('modalBg').classList.add('show');
+  setTimeout(() => inp.focus(), 50);
+}
+function closeModal() { document.getElementById('modalBg').classList.remove('show'); curId = null; }
+
+document.getElementById('mSerial').addEventListener('input', function () {
+  const clean = this.value.replace(/[^A-Za-z0-9]/g, '');
+  const hint = document.getElementById('mHint');
+  if (clean !== this.value) {
+    this.value = clean;
+    hint.className = 'hint err';
+    hint.textContent = 'Прибрано недопустимі символи — дозволені лише латинські літери та цифри.';
+  }
+});
+document.getElementById('mSerial').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') saveSerial();
+});
+
+async function saveSerial() {
+  if (!curId) return;
+  const val = document.getElementById('mSerial').value.trim();
+  if (!val) { alert('Введіть серійний номер або натисніть «Видалити».'); return; }
+  if (!/^[A-Za-z0-9]+$/.test(val)) { alert('Серійний номер може містити лише латинські літери та цифри.'); return; }
+  try {
+    setStatus('збереження…');
+    await sbUpsert(T_SN, [{ terminal_id: curId, serial: val, exported_at: null }], 'terminal_id');
+    serials.set(curId, { serial: val, exported_at: null });
+    closeModal(); render();
+    setStatus('● збережено · ' + new Date().toLocaleTimeString('uk-UA'));
+  } catch (e) { alert('Не вдалося зберегти:\n\n' + e.message); setStatus('помилка збереження'); }
+}
+async function deleteSerial() {
+  if (!curId) return;
+  if (!confirm('Видалити серійний номер для ' + curId + '?')) return;
+  try {
+    setStatus('видалення…');
+    await sbDeleteEq(T_SN, 'terminal_id', curId);
+    serials.delete(curId);
+    closeModal(); render();
+    setStatus('● видалено · ' + new Date().toLocaleTimeString('uk-UA'));
+  } catch (e) { alert('Не вдалося видалити:\n\n' + e.message); }
+}
+
+// ===== ФОРМУВАННЯ EXCEL =====
+function ddmmyyyy(d) {
+  const p = n => String(n).padStart(2, '0');
+  return p(d.getDate()) + p(d.getMonth() + 1) + d.getFullYear();
+}
+async function buildExcel() {
+  const ids = allIds();
+  const ready = [], skipped = [];
+  ids.forEach(id => {
+    const s = serials.get(id); if (!s) return;
+    if (registry.has(id)) ready.push(id); else skipped.push(id);
+  });
+  if (!ready.length) {
+    alert('Немає жодного терміналу з серійним номером, який є в реєстрі.\n\n' +
+          (skipped.length ? `Із серійним номером, але поза реєстром: ${skipped.length}.` : 'Спершу введіть серійні номери.'));
+    return;
+  }
+  ready.sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
+  let msg = `Буде сформовано файл на ${ready.length} терміналів.`;
+  if (skipped.length) msg += `\n\nНе потраплять (немає в реєстрі): ${skipped.length}.`;
+  if (!confirm(msg + '\n\nПродовжити?')) return;
+
+  const H1 = ['№ П/п', 'Ідентифікатори CASH', '', 'Чек', '', '', '', 'Ідентифікатори СБОН', '',
+              'Серійний номер терміналу', 'Час відвантаження транзакцій (формат ЧЧММ)',
+              'Тип підключення (Ethernet, GPRS)', 'IP Address', 'Subnet Mask', 'Default Gateway', 'DHCP'];
+  const H2 = ['', 'TerminalID', 'MerchantID', 'Строка 1', 'Строка 2', 'Строка 3', 'Строка 4',
+              'TerminalID', 'MerchantID', '', '', '', '', '', '', ''];
+  const aoa = [H1, H2];
+  ready.forEach((id, i) => {
+    const r = registry.get(id), s = serials.get(id);
+    aoa.push([i + 1, r.terminal_id, r.merchant_id, r.d1, r.d2, r.d3, r.d4,
+              r.sbon_tid, r.sbon_aid, s.serial, r.send_time, r.conn_type,
+              r.ip, r.mask, r.gw, r.dhcp]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 },  e: { r: 1, c: 0 } },
+    { s: { r: 0, c: 1 },  e: { r: 0, c: 2 } },
+    { s: { r: 0, c: 7 },  e: { r: 0, c: 8 } },
+    { s: { r: 0, c: 9 },  e: { r: 1, c: 9 } },
+    { s: { r: 0, c: 10 }, e: { r: 1, c: 10 } },
+    { s: { r: 0, c: 11 }, e: { r: 1, c: 11 } },
+    { s: { r: 0, c: 12 }, e: { r: 1, c: 12 } },
+    { s: { r: 0, c: 13 }, e: { r: 1, c: 13 } },
+    { s: { r: 0, c: 14 }, e: { r: 1, c: 14 } },
+    { s: { r: 0, c: 15 }, e: { r: 1, c: 15 } }
+  ];
+  ws['!cols'] = [7, 13, 13, 16, 20, 16, 26, 12, 12, 26, 12, 22, 14, 14, 14, 7].map(w => ({ wch: w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '#1');
+  const stamp = ddmmyyyy(new Date());
+  XLSX.writeFile(wb, `POS_CASH_СБОН_Профили_${stamp}_Desk.xlsx`);
+
+  // позначаємо як вивантажені
+  try {
+    setStatus('позначення вивантажених…');
+    const now = new Date().toISOString();
+    await sbUpsert(T_SN, ready.map(id => ({ terminal_id: id, serial: serials.get(id).serial, exported_at: now })), 'terminal_id');
+    ready.forEach(id => { const s = serials.get(id); s.exported_at = now; });
+    render();
+    setStatus('● файл сформовано · ' + new Date().toLocaleTimeString('uk-UA'));
+  } catch (e) {
+    alert('Файл сформовано, але не вдалося позначити термінали як вивантажені:\n\n' + e.message);
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>
