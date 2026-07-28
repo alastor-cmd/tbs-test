@@ -131,6 +131,7 @@ tr:hover td{background:#f7fbf7;}
   </select>
   <div class="toolbar-right">
     <span class="total-info" id="totalInfo"></span>
+    <button class="btn" id="btnMail" onclick="mailRenome()" disabled>✉️ Лист реноме</button>
     <button class="btn btn-green" id="btnBuild" onclick="buildExcel()">Сформувати Excel</button>
   </div>
 </div>
@@ -436,6 +437,12 @@ function updateStats() {
   document.getElementById('stInReg').textContent = inReg;
   document.getElementById('stSn').textContent = withSn;
   document.getElementById('stExp').textContent = exp;
+  const batch = lastExportBatch();
+  const bm = document.getElementById('btnMail');
+  bm.disabled = batch.length === 0;
+  bm.textContent = batch.length ? `✉️ Лист реноме (${batch.length})` : '✉️ Лист реноме';
+  bm.title = batch.length ? `Лист по останньому формуванню: ${batch.length} терміналів`
+                          : 'Спершу сформуйте Excel';
 }
 
 // ===== СЕРІЙНИЙ НОМЕР =====
@@ -502,6 +509,77 @@ async function deleteSerial() {
     closeModal(); render();
     setStatus('● видалено · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) { alert('Не вдалося видалити:\n\n' + e.message); }
+}
+
+// ===== ЛИСТ РЕНОМЕ =====
+const RENOME_EMAIL = '';   // TODO: вписати адресу отримувача; поки порожньо — Outlook відкриється з пустим «Кому»
+
+// відділення за нормалізованим ID терміналу
+function branchByIdMap() {
+  const m = new Map();
+  branches.forEach(b => b.windows.concat(b.managers).forEach(o => m.set(normId(o.id), b)));
+  return m;
+}
+// термінали останнього формування (за найсвіжішою міткою вивантаження)
+function lastExportBatch() {
+  let maxTs = null;
+  serials.forEach(s => { if (s.exported_at && (!maxTs || s.exported_at > maxTs)) maxTs = s.exported_at; });
+  if (!maxTs) return [];
+  const out = [];
+  serials.forEach((s, k) => { if (s.exported_at === maxTs) out.push(k); });
+  return out.sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
+}
+function utf8b64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function wrap76(s) { return s.replace(/(.{76})/g, '$1\r\n'); }
+
+function renomeBody(ids) {
+  const bm = branchByIdMap();
+  const blocks = ids.map(k => {
+    const b = bm.get(k) || {}, reg = registry.get(k) || {}, sn = serials.get(k);
+    return ['ТВБВ №' + (b.tvbv || '—'),
+            'Адреса - ' + (b.address || '—'),
+            'Контакт - ' + (b.contact || '—'),
+            'ІД термінала - ' + (reg.terminal_id || k),
+            'СН термінала - ' + (sn ? sn.serial : '—')].join('\r\n');
+  });
+  return ['Доброго дня.',
+          'Прохання сформувати заявку на залучення інженерів для заміни терміналів',
+          '', blocks.join('\r\n\r\n')].join('\r\n');
+}
+
+function mailRenome() {
+  const ids = lastExportBatch();
+  if (!ids.length) { alert('Спершу сформуйте Excel — лист складається з терміналів останнього формування.'); return; }
+  const SUBJ = 'Заміна Desk';
+  const body = renomeBody(ids);
+  const link = 'mailto:' + RENOME_EMAIL + '?subject=' + encodeURIComponent(SUBJ) +
+               '&body=' + encodeURIComponent(body);
+
+  // Короткий лист — відкриваємо Outlook напряму
+  if (link.length <= 1800) { window.location.href = link; return; }
+
+  // Довгий — формуємо файл листа: відкриється в Outlook готовим до надсилання
+  const eml = ['To: ' + RENOME_EMAIL,
+               'Subject: =?UTF-8?B?' + utf8b64(SUBJ) + '?=',
+               'X-Unsent: 1',
+               'MIME-Version: 1.0',
+               'Content-Type: text/plain; charset=utf-8',
+               'Content-Transfer-Encoding: base64',
+               '', wrap76(utf8b64(body))].join('\r\n');
+  const blob = new Blob([eml], { type: 'message/rfc822' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Заміна Desk ${ddmmyyyy(new Date())}.eml`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  alert(`У листі ${ids.length} терміналів — це задовго для прямого відкриття Outlook.\n\n` +
+        'Завантажено файл листа (.eml) — відкрийте його подвійним кліком, ' +
+        'Outlook покаже готовий лист із темою й текстом, лишиться натиснути «Надіслати».');
 }
 
 // ===== ФОРМУВАННЯ EXCEL =====
