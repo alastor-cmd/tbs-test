@@ -141,6 +141,7 @@ tr:hover td{background:#f7fbf7;}
   <div class="stat-card"><div class="stat-val" id="stIds">—</div><div class="stat-lbl">Ідентифікаторів</div></div>
   <div class="stat-card"><div class="stat-val" id="stInReg">—</div><div class="stat-lbl">Є в реєстрі</div></div>
   <div class="stat-card"><div class="stat-val" id="stSn">—</div><div class="stat-lbl">Із серійним номером</div></div>
+  <div class="stat-card"><div class="stat-val" id="stNew">—</div><div class="stat-lbl">Нових до формування</div></div>
   <div class="stat-card"><div class="stat-val" id="stExp">—</div><div class="stat-lbl">Вивантажено у файл</div></div>
 </div>
 
@@ -430,12 +431,18 @@ function allIds() {
 function updateStats() {
   const ids = allIds();
   let inReg = 0; ids.forEach(id => { if (registry.has(id)) inReg++; });
-  let withSn = 0, exp = 0;
-  ids.forEach(id => { const s = serials.get(id); if (s) { withSn++; if (s.exported_at) exp++; } });
+  let withSn = 0, exp = 0, fresh = 0;
+  ids.forEach(id => {
+    const s = serials.get(id);
+    if (!s) return;
+    withSn++;
+    if (s.exported_at) exp++; else if (registry.has(id)) fresh++;
+  });
   document.getElementById('stBranches').textContent = branches.length;
   document.getElementById('stIds').textContent = ids.size;
   document.getElementById('stInReg').textContent = inReg;
   document.getElementById('stSn').textContent = withSn;
+  document.getElementById('stNew').textContent = fresh;
   document.getElementById('stExp').textContent = exp;
   const batch = lastExportBatch();
   const bm = document.getElementById('btnMail');
@@ -589,19 +596,30 @@ function ddmmyyyy(d) {
 }
 async function buildExcel() {
   const ids = allIds();
-  const ready = [], skipped = [];
+  let ready = [], skipped = [];
   ids.forEach(id => {
-    const s = serials.get(id); if (!s) return;
+    const s = serials.get(id);
+    if (!s || s.exported_at) return;              // беремо ЛИШЕ нові, ще не вивантажені
     if (registry.has(id)) ready.push(id); else skipped.push(id);
   });
+
+  let isRepeat = false;
   if (!ready.length) {
-    alert('Немає жодного терміналу з серійним номером, який є в реєстрі.\n\n' +
-          (skipped.length ? `Із серійним номером, але поза реєстром: ${skipped.length}.` : 'Спершу введіть серійні номери.'));
-    return;
+    const last = lastExportBatch().filter(k => registry.has(k));
+    if (last.length && confirm(`Нових терміналів із серійним номером немає.\n\n` +
+                               `Сформувати повторно останню партію — ${last.length} терміналів?`)) {
+      ready = last.slice(); isRepeat = true;
+    } else {
+      alert('Немає нових терміналів для формування.\n\n' +
+            (skipped.length ? `Із серійним номером, але поза реєстром: ${skipped.length}.\n\n` : '') +
+            'Введіть серійні номери потрібних терміналів і натисніть «Сформувати Excel».');
+      return;
+    }
   }
   ready.sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
-  let msg = `Буде сформовано файл на ${ready.length} терміналів.`;
-  if (skipped.length) msg += `\n\nНе потраплять (немає в реєстрі): ${skipped.length}.`;
+  let msg = isRepeat ? `Повторне формування останньої партії: ${ready.length} терміналів.`
+                     : `Буде сформовано файл на ${ready.length} нових терміналів.`;
+  if (!isRepeat && skipped.length) msg += `\n\nНе потраплять (немає в реєстрі): ${skipped.length}.`;
   if (!confirm(msg + '\n\nПродовжити?')) return;
 
   const H1 = ['№ П/п', 'Ідентифікатори CASH', '', 'Чек', '', '', '', 'Ідентифікатори СБОН', '',
@@ -672,6 +690,12 @@ async function buildExcel() {
   a.download = `POS_CASH_СБОН_Профили_${stamp}_Desk.xlsx`;
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+
+  // повторне формування не змінює склад партії
+  if (isRepeat) {
+    setStatus('● файл сформовано повторно · ' + new Date().toLocaleTimeString('uk-UA'));
+    return;
+  }
 
   // позначаємо як вивантажені
   try {
