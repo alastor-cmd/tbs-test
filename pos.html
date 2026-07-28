@@ -225,6 +225,12 @@ let curId = null, curBranch = null;
 function setStatus(t) { document.getElementById('dbStatus').textContent = t; }
 function setImport(t) { document.getElementById('importStatus').textContent = t; }
 function norm(v) { return v === null || v === undefined ? '' : String(v).trim(); }
+// Кирилиця й латиниця візуально збігаються (С/C, О/O…). Для зіставлення зводимо до латиниці.
+const CYR2LAT = { 'А':'A','В':'B','Е':'E','З':'3','И':'N','К':'K','М':'M','Н':'H','О':'O','Р':'P',
+                  'С':'C','Т':'T','У':'Y','Х':'X','І':'I','Ї':'I','Є':'E','Ґ':'G','Ѕ':'S' };
+function normId(v) {
+  return norm(v).toUpperCase().replace(/[\u0400-\u04FF]/g, ch => CYR2LAT[ch] || ch);
+}
 function normList(a) {
   return (Array.isArray(a) ? a : []).map((o, i) =>
     typeof o === 'string' ? { n: i + 1, id: norm(o) } : { n: o && o.n ? o.n : i + 1, id: norm(o && o.id) }
@@ -244,8 +250,8 @@ async function loadAll() {
       tvbv: norm(r.tvbv), address: norm(r.address), contact: norm(r.contact),
       windows: normList(r.windows), managers: normList(r.managers)
     }));
-    registry = new Map(reg.map(r => [norm(r.terminal_id), r]));
-    serials  = new Map(sn.map(r => [norm(r.terminal_id), { serial: norm(r.serial), exported_at: r.exported_at || null }]));
+    registry = new Map(reg.map(r => [normId(r.terminal_id), r]));
+    serials  = new Map(sn.map(r => [normId(r.terminal_id), { serial: norm(r.serial), exported_at: r.exported_at || null }]));
     document.getElementById('cardBranches').classList.toggle('loaded', branches.length > 0);
     document.getElementById('cardRegistry').classList.toggle('loaded', registry.size > 0);
     document.getElementById('subBranches').textContent = branches.length ? `${branches.length} відділень у базі` : 'ТВБВ, адреси, ID кас і менеджерів';
@@ -335,8 +341,9 @@ function importRegistry(input) {
       const rows = [], seen = new Set();
       for (let i = head + 1; i < aoa.length; i++) {
         const r = aoa[i]; if (!r) continue;
-        const tid = norm(r[1]); if (!tid || seen.has(tid)) continue;
-        seen.add(tid);
+        const tid = norm(r[1]); if (!tid) continue;
+        const key = normId(tid); if (seen.has(key)) continue;
+        seen.add(key);
         rows.push({
           terminal_id: tid, merchant_id: norm(r[2]),
           d1: norm(r[3]), d2: norm(r[4]), d3: norm(r[5]), d4: norm(r[6]),
@@ -359,16 +366,18 @@ function importRegistry(input) {
 
 // ===== ВІДОБРАЖЕННЯ =====
 function idClass(id) {
-  const s = serials.get(id);
+  const k = normId(id);
+  const s = serials.get(k);
   if (s && s.exported_at) return 'id-btn exported';
   if (s) return 'id-btn has-sn';
-  if (!registry.has(id)) return 'id-btn absent';
+  if (!registry.has(k)) return 'id-btn absent';
   return 'id-btn';
 }
 function idTitle(id) {
-  const s = serials.get(id);
+  const k = normId(id);
+  const s = serials.get(k);
   const parts = [];
-  if (!registry.has(id)) parts.push('немає в реєстрі — у файл не потрапить');
+  if (!registry.has(k)) parts.push('немає в реєстрі — у файл не потрапить');
   if (s) parts.push('СН: ' + s.serial);
   if (s && s.exported_at) parts.push('вивантажено у файл');
   return parts.join(' · ') || 'натисніть, щоб ввести серійний номер';
@@ -391,9 +400,9 @@ function render() {
     b.windows.concat(b.managers).some(o => String(o.id).toLowerCase().includes(q)));
   if (f) list = list.filter(b => {
     const ids = b.windows.concat(b.managers);
-    if (f === 'sn')       return ids.some(o => serials.has(o.id));
-    if (f === 'nosn')     return !ids.some(o => serials.has(o.id));
-    if (f === 'exported') return ids.some(o => { const s = serials.get(o.id); return s && s.exported_at; });
+    if (f === 'sn')       return ids.some(o => serials.has(normId(o.id)));
+    if (f === 'nosn')     return !ids.some(o => serials.has(normId(o.id)));
+    if (f === 'exported') return ids.some(o => { const s = serials.get(normId(o.id)); return s && s.exported_at; });
     return true;
   });
   const tb = document.getElementById('tbody');
@@ -414,7 +423,7 @@ function render() {
 }
 function allIds() {
   const s = new Set();
-  branches.forEach(b => b.windows.concat(b.managers).forEach(o => s.add(o.id)));
+  branches.forEach(b => b.windows.concat(b.managers).forEach(o => s.add(normId(o.id))));
   return s;
 }
 function updateStats() {
@@ -431,9 +440,9 @@ function updateStats() {
 
 // ===== СЕРІЙНИЙ НОМЕР =====
 function openSerial(id, tvbv, slot) {
-  curId = id; curBranch = tvbv;
-  const s = serials.get(id);
-  const reg = registry.get(id);
+  curId = normId(id); curBranch = tvbv;
+  const s = serials.get(curId);
+  const reg = registry.get(curId);
   document.getElementById('mTitle').textContent = 'Термінал ' + id;
   document.getElementById('mSub').textContent = (slot ? slot + ' · ' : '') + 'ТВБВ №' + tvbv;
   const info = document.getElementById('mInfo');
