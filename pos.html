@@ -276,9 +276,25 @@ function importBranches(input) {
                     windows: pick(wIdx), managers: pick(mIdx) });
       }
       if (!rows.length) throw new Error('Не знайдено жодного рядка з ТВБВ.');
-      setImport(`знайдено ${rows.length} відділень, зберігаю…`);
-      await sbUpsert(T_BRANCH, rows, 'tvbv');
-      setImport(`✓ імпортовано ${rows.length} відділень`);
+
+      // Один ТВБВ може траплятися кілька разів — зливаємо, щоб не загубити ID
+      const byT = new Map(); let dupCount = 0;
+      rows.forEach(r => {
+        const ex = byT.get(r.tvbv);
+        if (!ex) { byT.set(r.tvbv, r); return; }
+        dupCount++;
+        if (!ex.address && r.address) ex.address = r.address;
+        if (!ex.contact && r.contact) ex.contact = r.contact;
+        const uni = (a, b) => [...new Set(a.concat(b))];
+        ex.windows  = uni(ex.windows,  r.windows);
+        ex.managers = uni(ex.managers, r.managers);
+      });
+      byT.forEach(r => { const w = new Set(r.windows); r.managers = r.managers.filter(id => !w.has(id)); });
+      const merged = [...byT.values()];
+
+      setImport(`знайдено ${merged.length} відділень${dupCount ? ` (об'єднано ${dupCount} дубл.)` : ''}, зберігаю…`);
+      await sbUpsert(T_BRANCH, merged, 'tvbv');
+      setImport(`✓ імпортовано ${merged.length} відділень${dupCount ? ` · об'єднано дублікатів ТВБВ: ${dupCount}` : ''}`);
       await loadAll();
     } catch (err) {
       setImport(''); alert('Помилка імпорту Додатка 1:\n\n' + err.message);
