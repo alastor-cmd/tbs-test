@@ -90,6 +90,14 @@ tr:hover td{background:#f7fbf7;}
 .info-box{background:#f5f8f5;border:1px solid var(--border2);border-radius:8px;padding:10px 12px;font-size:12px;margin-bottom:14px;line-height:1.55;}
 .info-box.warn{background:#fdf6f6;border-color:#e8c8c8;color:#7a2020;}
 .modal-actions{margin-top:16px;display:flex;gap:8px;justify-content:flex-end;}
+.modal input[type=text].plain{font-family:inherit;font-size:13px;letter-spacing:normal;}
+.slot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:7px;margin-top:6px;}
+.slot label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:2px;}
+.slot input{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;outline:none;}
+.slot input:focus{border-color:#2a7a4c;box-shadow:0 0 0 3px rgba(42,122,76,.1);}
+.modal-scroll{max-height:52vh;overflow-y:auto;padding-right:4px;}
+.tvbv-link{color:#1a5c38;cursor:pointer;border-bottom:1px dashed #9ec9b0;}
+.tvbv-link:hover{color:#0f4526;border-bottom-style:solid;}
 </style>
 </head>
 <body>
@@ -131,6 +139,7 @@ tr:hover td{background:#f7fbf7;}
   </select>
   <div class="toolbar-right">
     <span class="total-info" id="totalInfo"></span>
+    <button class="btn" onclick="openBranch()">➕ Додати ТВБВ</button>
     <button class="btn" id="btnMail" onclick="mailRenome()" disabled>✉️ Лист реноме</button>
     <button class="btn btn-green" id="btnBuild" onclick="buildExcel()">Сформувати Excel</button>
   </div>
@@ -157,6 +166,27 @@ tr:hover td{background:#f7fbf7;}
     <tbody id="tbody"></tbody>
   </table>
   <div class="empty" id="emptyMsg" style="display:none"></div>
+</div>
+
+<div class="modal-bg" id="brModalBg" onclick="if(event.target===this)closeBranch()">
+  <div class="modal" style="max-width:640px">
+    <h3 id="brTitle">Нове відділення</h3>
+    <div class="sub">Дані ТВБВ та його термінали</div>
+    <div class="modal-scroll">
+      <label class="field-lbl" for="brTvbv">ТВБВ №</label>
+      <input type="text" class="plain" id="brTvbv" placeholder="напр. 10001/01" autocomplete="off">
+      <label class="field-lbl" for="brAddr" style="margin-top:12px">Актуальна адреса відділення</label>
+      <input type="text" class="plain" id="brAddr" autocomplete="off">
+      <label class="field-lbl" for="brContact" style="margin-top:12px">Контактна особа (ПІБ та телефон)</label>
+      <input type="text" class="plain" id="brContact" autocomplete="off">
+      <div id="brSlots"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="brDel" onclick="deleteBranch()">Видалити</button>
+      <button class="btn" onclick="closeBranch()">Закрити</button>
+      <button class="btn btn-green" onclick="saveBranch()">Зберегти</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
@@ -409,7 +439,7 @@ function render() {
   });
   const tb = document.getElementById('tbody');
   tb.innerHTML = list.map(b => `<tr>
-    <td class="tvbv">${b.tvbv}</td>
+    <td class="tvbv"><span class="tvbv-link" onclick="openBranch('${String(b.tvbv).replace(/'/g, "\\'")}')" title="Редагувати відділення">${b.tvbv}</span></td>
     <td class="addr">${b.address || '—'}</td>
     <td class="contact">${b.contact || '—'}</td>
     <td class="id-cell">${idButtons(b.windows, b.tvbv, 'Каса')}</td>
@@ -514,6 +544,92 @@ async function deleteSerial() {
     await sbDeleteEq(T_SN, 'terminal_id', curId);
     serials.delete(curId);
     closeModal(); render();
+    setStatus('● видалено · ' + new Date().toLocaleTimeString('uk-UA'));
+  } catch (e) { alert('Не вдалося видалити:\n\n' + e.message); }
+}
+
+// ===== ДОДАВАННЯ / РЕДАГУВАННЯ ТВБВ =====
+let editBranch = null, brWin = 4, brMgr = 3;
+
+function renderSlots(b) {
+  const esc = v => String(v || '').replace(/"/g, '&quot;');
+  const grid = (title, arr, count, prefix) => {
+    const byN = new Map((arr || []).map(o => [o.n, o.id]));
+    let h = `<div class="field-lbl" style="margin-top:16px">${title}</div><div class="slot-grid">`;
+    for (let i = 1; i <= count; i++)
+      h += `<div class="slot"><label>${prefix} ${i}</label>` +
+           `<input type="text" data-k="${prefix}" data-n="${i}" value="${esc(byN.get(i))}" autocomplete="off"></div>`;
+    return h + '</div>';
+  };
+  document.getElementById('brSlots').innerHTML =
+    grid('Каси', b.windows, brWin, 'Каса') +
+    `<button class="btn" style="margin-top:8px" onclick="moreSlots('w')">+ ще каса</button>` +
+    grid('Менеджери', b.managers, brMgr, 'Менеджер') +
+    `<button class="btn" style="margin-top:8px" onclick="moreSlots('m')">+ ще менеджер</button>`;
+}
+function collectSlots() {
+  const w = [], m = [];
+  document.querySelectorAll('#brSlots input').forEach(inp => {
+    const v = inp.value.trim(); if (!v) return;
+    (inp.dataset.k === 'Каса' ? w : m).push({ n: +inp.dataset.n, id: v });
+  });
+  return { windows: w.sort((a, b) => a.n - b.n), managers: m.sort((a, b) => a.n - b.n) };
+}
+function moreSlots(kind) {
+  const cur = collectSlots();
+  if (kind === 'w') brWin = Math.min(brWin + 1, 15); else brMgr = Math.min(brMgr + 1, 14);
+  renderSlots(cur);
+}
+function openBranch(tvbv) {
+  editBranch = tvbv || null;
+  const b = tvbv ? branches.find(x => x.tvbv === tvbv)
+                 : { tvbv: '', address: '', contact: '', windows: [], managers: [] };
+  if (!b) { alert('Відділення не знайдено.'); return; }
+  document.getElementById('brTitle').textContent = tvbv ? 'Відділення ТВБВ №' + tvbv : 'Нове відділення';
+  const t = document.getElementById('brTvbv');
+  t.value = b.tvbv; t.disabled = !!tvbv;
+  document.getElementById('brAddr').value = b.address || '';
+  document.getElementById('brContact').value = b.contact || '';
+  brWin = Math.min(15, Math.max(4, ...b.windows.map(o => o.n), 0) + 1);
+  brMgr = Math.min(14, Math.max(3, ...b.managers.map(o => o.n), 0) + 1);
+  renderSlots(b);
+  document.getElementById('brDel').style.display = tvbv ? '' : 'none';
+  document.getElementById('brModalBg').classList.add('show');
+  setTimeout(() => (tvbv ? document.getElementById('brAddr') : t).focus(), 50);
+}
+function closeBranch() { document.getElementById('brModalBg').classList.remove('show'); editBranch = null; }
+
+async function saveBranch() {
+  const tvbv = document.getElementById('brTvbv').value.trim();
+  if (!tvbv) { alert('Вкажіть номер ТВБВ.'); return; }
+  if (!editBranch && branches.some(b => b.tvbv === tvbv)) {
+    alert('Таке ТВБВ вже є у списку — відкрийте його, щоб відредагувати.'); return;
+  }
+  const { windows, managers } = collectSlots();
+  const dup = new Set(windows.map(o => normId(o.id)));
+  const row = {
+    tvbv,
+    address: document.getElementById('brAddr').value.trim(),
+    contact: document.getElementById('brContact').value.trim(),
+    windows,
+    managers: managers.filter(o => !dup.has(normId(o.id)))
+  };
+  try {
+    setStatus('збереження відділення…');
+    await sbUpsert(T_BRANCH, [row], 'tvbv');
+    closeBranch();
+    await loadAll();
+    setStatus('● збережено · ' + new Date().toLocaleTimeString('uk-UA'));
+  } catch (e) { alert('Не вдалося зберегти:\n\n' + e.message); setStatus('помилка збереження'); }
+}
+async function deleteBranch() {
+  if (!editBranch) return;
+  if (!confirm(`Видалити відділення ТВБВ №${editBranch} з усіма його ID?\n\nВведені серійні номери при цьому не стираються.`)) return;
+  try {
+    setStatus('видалення…');
+    await sbDeleteEq(T_BRANCH, 'tvbv', editBranch);
+    closeBranch();
+    await loadAll();
     setStatus('● видалено · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) { alert('Не вдалося видалити:\n\n' + e.message); }
 }
