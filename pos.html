@@ -189,11 +189,25 @@ tr:hover td{background:#f7fbf7;}
   </div>
 </div>
 
+<div class="modal-bg" id="regModalBg" style="z-index:60" onclick="if(event.target===this)closeReg()">
+  <div class="modal" style="max-width:660px">
+    <h3 id="regTitle">Дані реєстру</h3>
+    <div class="sub" id="regSub"></div>
+    <div class="modal-scroll" id="regFields"></div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="regDel" onclick="deleteReg()">Видалити з реєстру</button>
+      <button class="btn" onclick="closeReg()">Закрити</button>
+      <button class="btn btn-green" onclick="saveReg()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modalBg" onclick="if(event.target===this)closeModal()">
   <div class="modal">
     <h3 id="mTitle">Серійний номер</h3>
     <div class="sub" id="mSub"></div>
     <div class="info-box" id="mInfo"></div>
+    <button class="btn" id="mRegBtn" onclick="openReg()" style="margin-bottom:14px">✏️ Редагувати дані реєстру</button>
     <label class="field-lbl" for="mSerial">Серійний номер терміналу</label>
     <input type="text" id="mSerial" autocomplete="off" spellcheck="false" placeholder="напр. 250154417011337370330409">
     <div class="hint" id="mHint">Дозволені лише латинські літери та цифри.</div>
@@ -252,7 +266,7 @@ async function sbDeleteEq(table, col, val) {
 let branches = [];              // [{tvbv,address,contact,windows[],managers[]}]
 let registry = new Map();       // terminal_id -> row
 let serials  = new Map();       // terminal_id -> {serial, exported_at}
-let curId = null, curBranch = null;
+let curId = null, curRawId = null, curBranch = null;
 
 function setStatus(t) { document.getElementById('dbStatus').textContent = t; }
 function setImport(t) { document.getElementById('importStatus').textContent = t; }
@@ -484,20 +498,12 @@ function updateStats() {
 
 // ===== СЕРІЙНИЙ НОМЕР =====
 function openSerial(id, tvbv, slot) {
-  curId = normId(id); curBranch = tvbv;
+  curId = normId(id); curRawId = id; curBranch = tvbv;
   const s = serials.get(curId);
   const reg = registry.get(curId);
   document.getElementById('mTitle').textContent = 'Термінал ' + id;
   document.getElementById('mSub').textContent = (slot ? slot + ' · ' : '') + 'ТВБВ №' + tvbv;
-  const info = document.getElementById('mInfo');
-  if (reg) {
-    info.className = 'info-box';
-    info.innerHTML = `<b>У реєстрі:</b> MerchantID ${reg.merchant_id || '—'} · СБОН ${reg.sbon_tid || '—'} / ${reg.sbon_aid || '—'}<br>` +
-                     `${[reg.d2, reg.d3, reg.d4].filter(Boolean).join(', ') || '—'}`;
-  } else {
-    info.className = 'info-box warn';
-    info.innerHTML = '<b>Немає в реєстрі cash_POS.</b> Серійний номер збережеться, але цей термінал не потрапить у сформований файл.';
-  }
+  fillRegInfo();
   const inp = document.getElementById('mSerial');
   inp.value = s ? s.serial : '';
   document.getElementById('mDel').style.display = s ? '' : 'none';
@@ -545,6 +551,84 @@ async function deleteSerial() {
     serials.delete(curId);
     closeModal(); render();
     setStatus('● видалено · ' + new Date().toLocaleTimeString('uk-UA'));
+  } catch (e) { alert('Не вдалося видалити:\n\n' + e.message); }
+}
+
+// ===== РЕДАГУВАННЯ ЗАПИСУ РЕЄСТРУ =====
+const REG_FIELDS = [
+  { k: 'merchant_id', l: 'MerchantID' },
+  { k: 'd1', l: 'Чек · Строка 1' },
+  { k: 'd2', l: 'Чек · Строка 2' },
+  { k: 'd3', l: 'Чек · Строка 3' },
+  { k: 'd4', l: 'Чек · Строка 4' },
+  { k: 'sbon_tid', l: 'СБОН · TerminalID' },
+  { k: 'sbon_aid', l: 'СБОН · MerchantID' },
+  { k: 'send_time', l: 'Час відвантаження (ЧЧММ)' },
+  { k: 'conn_type', l: 'Тип підключення' },
+  { k: 'ip', l: 'IP Address' },
+  { k: 'mask', l: 'Subnet Mask' },
+  { k: 'gw', l: 'Default Gateway' },
+  { k: 'dhcp', l: 'DHCP' }
+];
+
+function fillRegInfo() {
+  const reg = registry.get(curId);
+  const info = document.getElementById('mInfo');
+  const btn = document.getElementById('mRegBtn');
+  if (reg) {
+    info.className = 'info-box';
+    info.innerHTML = `<b>У реєстрі:</b> MerchantID ${reg.merchant_id || '—'} · СБОН ${reg.sbon_tid || '—'} / ${reg.sbon_aid || '—'}<br>` +
+                     `${[reg.d2, reg.d3, reg.d4].filter(Boolean).join(', ') || '—'}`;
+    btn.textContent = '✏️ Редагувати дані реєстру';
+  } else {
+    info.className = 'info-box warn';
+    info.innerHTML = '<b>Немає в реєстрі cash_POS.</b> Серійний номер збережеться, але у файл термінал не потрапить, доки його не буде в реєстрі.';
+    btn.textContent = '➕ Додати в реєстр';
+  }
+}
+
+function openReg() {
+  if (!curId) return;
+  const reg = registry.get(curId) || {};
+  const isNew = !registry.has(curId);
+  document.getElementById('regTitle').textContent = (isNew ? 'Додати в реєстр: ' : 'Дані реєстру: ') + (reg.terminal_id || curRawId);
+  document.getElementById('regSub').textContent = isNew
+    ? 'Запису ще немає — заповніть поля, і термінал зможе потрапляти у файл.'
+    : 'Зміни збережуться в реєстрі та вплинуть на наступні файли.';
+  const esc = v => String(v == null ? '' : v).replace(/"/g, '&quot;');
+  document.getElementById('regFields').innerHTML =
+    '<div class="slot-grid" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr))">' +
+    REG_FIELDS.map(f => `<div class="slot"><label>${f.l}</label>` +
+      `<input type="text" data-rk="${f.k}" value="${esc(reg[f.k])}" autocomplete="off"></div>`).join('') +
+    '</div>';
+  document.getElementById('regDel').style.display = isNew ? 'none' : '';
+  document.getElementById('regModalBg').classList.add('show');
+}
+function closeReg() { document.getElementById('regModalBg').classList.remove('show'); }
+
+async function saveReg() {
+  if (!curId) return;
+  const existing = registry.get(curId);
+  const row = { terminal_id: existing ? existing.terminal_id : normId(curRawId) };
+  document.querySelectorAll('#regFields input').forEach(inp => { row[inp.dataset.rk] = inp.value.trim(); });
+  try {
+    setStatus('збереження реєстру…');
+    await sbUpsert(T_REG, [row], 'terminal_id');
+    registry.set(curId, row);
+    closeReg(); fillRegInfo(); render();
+    setStatus('● реєстр оновлено · ' + new Date().toLocaleTimeString('uk-UA'));
+  } catch (e) { alert('Не вдалося зберегти дані реєстру:\n\n' + e.message); setStatus('помилка збереження'); }
+}
+async function deleteReg() {
+  const existing = registry.get(curId);
+  if (!existing) return;
+  if (!confirm(`Видалити ${existing.terminal_id} з реєстру?\n\nТермінал перестане потрапляти у файли.`)) return;
+  try {
+    setStatus('видалення з реєстру…');
+    await sbDeleteEq(T_REG, 'terminal_id', existing.terminal_id);
+    registry.delete(curId);
+    closeReg(); fillRegInfo(); render();
+    setStatus('● видалено з реєстру · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) { alert('Не вдалося видалити:\n\n' + e.message); }
 }
 
