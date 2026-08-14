@@ -96,6 +96,14 @@ tr:hover td{background:#f7fbf7;}
 .slot input{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;outline:none;}
 .slot input:focus{border-color:#2a7a4c;box-shadow:0 0 0 3px rgba(42,122,76,.1);}
 .modal-scroll{max-height:52vh;overflow-y:auto;padding-right:4px;}
+.kk-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-bottom:1px solid var(--border2);font-size:12px;cursor:pointer;}
+.kk-row:hover{background:#f7fbf7;}
+.kk-row input{margin:0;}
+.kk-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;min-width:96px;}
+.kk-sn{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#2a4a34;flex:1;}
+.kk-tv{color:var(--muted);min-width:120px;}
+.kk-ru{color:#1a5c38;font-weight:600;min-width:52px;}
+.kk-new{font-size:10px;background:#d8f5e3;color:#115c37;padding:1px 5px;border-radius:4px;font-weight:700;}
 .tvbv-link{color:#1a5c38;cursor:pointer;border-bottom:1px dashed #9ec9b0;}
 .tvbv-link:hover{color:#0f4526;border-bottom-style:solid;}
 </style>
@@ -141,7 +149,7 @@ tr:hover td{background:#f7fbf7;}
     <span class="total-info" id="totalInfo"></span>
     <button class="btn" onclick="openBranch()">➕ Додати ТВБВ</button>
     <button class="btn" onclick="openRu()">🏢 Довідник РУ</button>
-    <button class="btn" id="btnKk" onclick="buildKK()" disabled>📄 Виготовлення КК</button>
+    <button class="btn" id="btnKk" onclick="openKk()" disabled>📄 Виготовлення КК</button>
     <button class="btn" id="btnMail" onclick="mailRenome()" disabled>✉️ Лист реноме</button>
     <button class="btn btn-green" id="btnBuild" onclick="buildExcel()">Сформувати Excel</button>
   </div>
@@ -187,6 +195,25 @@ tr:hover td{background:#f7fbf7;}
       <button class="btn btn-danger" id="brDel" onclick="deleteBranch()">Видалити</button>
       <button class="btn" onclick="closeBranch()">Закрити</button>
       <button class="btn btn-green" onclick="saveBranch()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="kkModalBg" onclick="if(event.target===this)closeKk()">
+  <div class="modal" style="max-width:740px">
+    <h3>Виготовлення криптоключів</h3>
+    <div class="sub" id="kkSub"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <input class="search-input" id="kkSearch" placeholder="Пошук: ID, СН або ТВБВ" oninput="renderKkList()">
+      <button class="btn" onclick="kkToggleAll(true)">Вибрати всі</button>
+      <button class="btn" onclick="kkToggleAll(false)">Зняти всі</button>
+      <button class="btn" id="kkMoreBtn" onclick="kkShowAll()">Не знайду ID</button>
+    </div>
+    <div class="modal-scroll" id="kkList"></div>
+    <div class="modal-actions">
+      <span id="kkCount" style="margin-right:auto;font-size:12px;color:var(--muted)"></span>
+      <button class="btn" onclick="closeKk()">Закрити</button>
+      <button class="btn btn-green" onclick="generateKK()">Сформувати заявки</button>
     </div>
   </div>
 </div>
@@ -517,9 +544,9 @@ function updateStats() {
   bm.title = batch.length ? `Лист по останньому формуванню: ${batch.length} терміналів`
                           : 'Спершу сформуйте Excel';
   const kk = document.getElementById('btnKk');
-  kk.disabled = batch.length === 0;
-  kk.title = batch.length ? `Заявки на криптоключі: ${batch.length} терміналів, по РУ окремими файлами`
-                          : 'Спершу сформуйте Excel';
+  kk.disabled = serials.size === 0;
+  kk.title = serials.size ? 'Вибір терміналів і формування заявок по РУ'
+                          : 'Спершу введіть серійні номери';
 }
 
 // ===== СЕРІЙНИЙ НОМЕР =====
@@ -686,9 +713,65 @@ function buildKkRtf(ru, items, num, date) {
   return r + '}';
 }
 
-async function buildKK() {
-  const ids = lastExportBatch();
-  if (!ids.length) { alert('Спершу сформуйте Excel — заявки складаються з терміналів останнього формування.'); return; }
+let kkMode = 'batch', kkSel = new Set();
+
+function openKk() {
+  const batch = lastExportBatch();
+  kkMode = batch.length ? 'batch' : 'all';
+  kkSel = new Set(batch);
+  document.getElementById('kkSearch').value = '';
+  renderKkList();
+  document.getElementById('kkModalBg').classList.add('show');
+}
+function closeKk() { document.getElementById('kkModalBg').classList.remove('show'); }
+function kkShowAll() { kkMode = 'all'; renderKkList(); }
+function kkSource() {
+  if (kkMode === 'batch') return lastExportBatch();
+  return [...serials.keys()].sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
+}
+function kkPick(el) { el.checked ? kkSel.add(el.dataset.k) : kkSel.delete(el.dataset.k); updateKkCount(); }
+function kkToggleAll(on) {
+  visibleKk().forEach(k => on ? kkSel.add(k) : kkSel.delete(k));
+  renderKkList();
+}
+function visibleKk() {
+  const q = (document.getElementById('kkSearch').value || '').trim().toLowerCase();
+  const info = infoByIdMap();
+  return kkSource().filter(k => {
+    if (!q) return true;
+    const s = serials.get(k) || {}, b = (info.get(k) || {}).b || {};
+    return k.toLowerCase().includes(q) || String(s.serial || '').toLowerCase().includes(q) ||
+           String(b.tvbv || '').toLowerCase().includes(q);
+  });
+}
+function updateKkCount() {
+  document.getElementById('kkCount').textContent = `Обрано: ${kkSel.size}`;
+}
+function renderKkList() {
+  const info = infoByIdMap(), batch = new Set(lastExportBatch());
+  const list = visibleKk();
+  document.getElementById('kkSub').textContent = kkMode === 'batch'
+    ? 'Термінали останнього формування ПЗ. Якщо потрібного немає — натисніть «Не знайду ID».'
+    : 'Усі термінали з введеним серійним номером.';
+  document.getElementById('kkMoreBtn').style.display = kkMode === 'batch' ? '' : 'none';
+  document.getElementById('kkList').innerHTML = list.length
+    ? list.map(k => {
+        const s = serials.get(k) || {}, b = (info.get(k) || {}).b || {}, reg = registry.get(k) || {};
+        return `<label class="kk-row"><input type="checkbox" data-k="${k}" ${kkSel.has(k) ? 'checked' : ''} onchange="kkPick(this)">` +
+               `<span class="kk-id">${reg.terminal_id || k}</span>` +
+               `<span class="kk-sn">${s.serial || '—'}</span>` +
+               `<span class="kk-tv">ТВБВ №${b.tvbv || '—'}</span>` +
+               `<span class="kk-ru">РУ ${ruCode(k)}</span>` +
+               (kkMode === 'all' && batch.has(k) ? '<span class="kk-new">остання партія</span>' : '') +
+               `</label>`;
+      }).join('')
+    : '<div class="empty">Немає терміналів із серійним номером.</div>';
+  updateKkCount();
+}
+
+async function generateKK() {
+  const ids = [...kkSel];
+  if (!ids.length) { alert('Оберіть хоча б один термінал.'); return; }
   // групуємо по РУ
   const groups = new Map();
   ids.forEach(k => {
@@ -724,6 +807,7 @@ async function buildKK() {
     const nr = Object.assign({}, ru, { last_num: (parseInt(ru.last_num, 10) || 0) + 1 });
     rus.set(code, nr); upd.push(nr);
   }
+  closeKk();
   try {
     await sbUpsert(T_RU, upd, 'code');
     setStatus(`● сформовано заявок: ${groups.size} · ` + new Date().toLocaleTimeString('uk-UA'));
