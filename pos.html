@@ -140,6 +140,8 @@ tr:hover td{background:#f7fbf7;}
   <div class="toolbar-right">
     <span class="total-info" id="totalInfo"></span>
     <button class="btn" onclick="openBranch()">➕ Додати ТВБВ</button>
+    <button class="btn" onclick="openRu()">🏢 Довідник РУ</button>
+    <button class="btn" id="btnKk" onclick="buildKK()" disabled>📄 Виготовлення КК</button>
     <button class="btn" id="btnMail" onclick="mailRenome()" disabled>✉️ Лист реноме</button>
     <button class="btn btn-green" id="btnBuild" onclick="buildExcel()">Сформувати Excel</button>
   </div>
@@ -189,6 +191,22 @@ tr:hover td{background:#f7fbf7;}
   </div>
 </div>
 
+<div class="modal-bg" id="ruModalBg" onclick="if(event.target===this)closeRu()">
+  <div class="modal" style="max-width:680px">
+    <h3>Довідник регіональних управлінь</h3>
+    <div class="sub">Дані підставляються в заявки на криптоключі</div>
+    <div class="modal-scroll">
+      <label class="field-lbl" for="ruCode">Код РУ (перші цифри ID термінала)</label>
+      <select class="filter" id="ruCode" style="width:100%;padding:8px" onchange="loadRuForm()"></select>
+      <div id="ruFields"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeRu()">Закрити</button>
+      <button class="btn btn-green" onclick="saveRu()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="regModalBg" style="z-index:60" onclick="if(event.target===this)closeReg()">
   <div class="modal" style="max-width:660px">
     <h3 id="regTitle">Дані реєстру</h3>
@@ -227,6 +245,7 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const T_BRANCH = 'pos_branches_test';
 const T_REG    = 'pos_registry_test';
 const T_SN     = 'pos_serials_test';
+const T_RU     = 'pos_ru_test';
 
 const sbHeaders = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
 
@@ -266,6 +285,7 @@ async function sbDeleteEq(table, col, val) {
 let branches = [];              // [{tvbv,address,contact,windows[],managers[]}]
 let registry = new Map();       // terminal_id -> row
 let serials  = new Map();       // terminal_id -> {serial, exported_at}
+let rus      = new Map();       // код РУ -> дані РУ
 let curId = null, curRawId = null, curBranch = null;
 
 function setStatus(t) { document.getElementById('dbStatus').textContent = t; }
@@ -287,11 +307,13 @@ function normList(a) {
 async function loadAll() {
   try {
     setStatus('завантаження…');
-    const [b, reg, sn] = await Promise.all([
+    const [b, reg, sn, ru] = await Promise.all([
       sbGetAll(T_BRANCH, 'tvbv.asc'),
       sbGetAll(T_REG, 'terminal_id.asc'),
-      sbGetAll(T_SN, 'terminal_id.asc')
+      sbGetAll(T_SN, 'terminal_id.asc'),
+      sbGetAll(T_RU, 'code.asc').catch(() => [])
     ]);
+    rus = new Map((ru || []).map(r => [String(r.code).trim(), r]));
     branches = b.map(r => ({
       tvbv: norm(r.tvbv), address: norm(r.address), contact: norm(r.contact),
       windows: normList(r.windows), managers: normList(r.managers)
@@ -494,6 +516,10 @@ function updateStats() {
   bm.textContent = batch.length ? `✉️ Лист реноме (${batch.length})` : '✉️ Лист реноме';
   bm.title = batch.length ? `Лист по останньому формуванню: ${batch.length} терміналів`
                           : 'Спершу сформуйте Excel';
+  const kk = document.getElementById('btnKk');
+  kk.disabled = batch.length === 0;
+  kk.title = batch.length ? `Заявки на криптоключі: ${batch.length} терміналів, по РУ окремими файлами`
+                          : 'Спершу сформуйте Excel';
 }
 
 // ===== СЕРІЙНИЙ НОМЕР =====
@@ -552,6 +578,156 @@ async function deleteSerial() {
     closeModal(); render();
     setStatus('● видалено · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) { alert('Не вдалося видалити:\n\n' + e.message); }
+}
+
+// ===== ДОВІДНИК РУ + ЗАЯВКИ НА КРИПТОКЛЮЧІ =====
+const RU_FIELDS = [
+  { k:'name',        l:'Найменування РУ', wide:true },
+  { k:'short_name',  l:'Коротка назва (для назви файлу)' },
+  { k:'doc_prefix',  l:'Префікс номера заявки' },
+  { k:'last_num',    l:'Останній номер заявки' },
+  { k:'p1_fio',      l:'1-й компонент · П.І.Б.' },
+  { k:'p1_pos',      l:'1-й компонент · Посада' },
+  { k:'p1_dep',      l:'1-й компонент · Підрозділ' },
+  { k:'p1_phone',    l:'1-й компонент · Телефон' },
+  { k:'p2_fio',      l:'2-й компонент · П.І.Б.' },
+  { k:'p2_pos',      l:'2-й компонент · Посада' },
+  { k:'p2_dep',      l:'2-й компонент · Підрозділ' },
+  { k:'p2_phone',    l:'2-й компонент · Телефон' },
+  { k:'filler_fio',  l:'Заявку заповнив · П.І.Б.' },
+  { k:'filler_phone',l:'Заявку заповнив · Телефон' }
+];
+const ruCode = id => String(id || '').substring(1, 3);
+
+function allRuCodes() {
+  const set = new Set(rus.keys());
+  allIds().forEach(id => { const c = ruCode(id); if (c) set.add(c); });
+  return [...set].sort();
+}
+function openRu(code) {
+  const sel = document.getElementById('ruCode');
+  sel.innerHTML = allRuCodes().map(c =>
+    `<option value="${c}">${c} — ${rus.has(c) ? (rus.get(c).name || 'без назви') : 'не заповнено'}</option>`).join('');
+  if (code) sel.value = code;
+  loadRuForm();
+  document.getElementById('ruModalBg').classList.add('show');
+}
+function closeRu() { document.getElementById('ruModalBg').classList.remove('show'); }
+function loadRuForm() {
+  const code = document.getElementById('ruCode').value;
+  const r = rus.get(code) || {};
+  const esc = v => String(v == null ? '' : v).replace(/"/g, '&quot;');
+  document.getElementById('ruFields').innerHTML =
+    '<div class="slot-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));margin-top:12px">' +
+    RU_FIELDS.map(f => `<div class="slot" ${f.wide ? 'style="grid-column:1/-1"' : ''}><label>${f.l}</label>` +
+      `<input type="text" data-ru="${f.k}" value="${esc(r[f.k])}" autocomplete="off"></div>`).join('') +
+    '</div>';
+}
+async function saveRu() {
+  const code = document.getElementById('ruCode').value;
+  const row = { code };
+  document.querySelectorAll('#ruFields input').forEach(i => { row[i.dataset.ru] = i.value.trim(); });
+  row.last_num = parseInt(row.last_num, 10) || 0;
+  try {
+    setStatus('збереження РУ…');
+    await sbUpsert(T_RU, [row], 'code');
+    rus.set(code, row);
+    closeRu(); render();
+    setStatus('● довідник РУ оновлено · ' + new Date().toLocaleTimeString('uk-UA'));
+  } catch (e) { alert('Не вдалося зберегти:\n\n' + e.message); }
+}
+
+// --- генерація RTF ---
+const KK_MON = ['січня','лютого','березня','квітня','травня','червня',
+                'липня','серпня','вересня','жовтня','листопада','грудня'];
+function rtfEsc(t) {
+  return String(t == null ? '' : t).replace(/[\\{}]/g, m => '\\' + m)
+    .replace(/[^\x00-\x7F]/g, c => '\\u' + c.charCodeAt(0) + '?');
+}
+function rtfRow(cells, align) {
+  const W = [420, 5472, 9792];
+  const B = '\\clbrdrt\\brdrs\\brdrw10\\clbrdrl\\brdrs\\brdrw10\\clbrdrb\\brdrs\\brdrw10\\clbrdrr\\brdrs\\brdrw10';
+  let d = '\\trowd\\trgaph108\\trleft-108';
+  W.forEach(w => { d += '\\clvertalc' + B + '\\cellx' + w; });
+  let body = '';
+  cells.forEach((c, i) => {
+    const txt = Array.isArray(c) ? c.filter(Boolean).map(rtfEsc).join('\\line ') : rtfEsc(c);
+    body += '\\pard\\intbl\\' + (align[i] || 'ql') + '\\li60\\ri60\\sb40\\sa40 ' + txt + '\\cell ';
+  });
+  return d + body + '\\row\n';
+}
+function buildKkRtf(ru, items, num, date) {
+  const d = `${date.getDate()} ${KK_MON[date.getMonth()]} ${date.getFullYear()}`;
+  const C = ['qc','ql','qc'], H = ['qc','ql','ql'];
+  let r = '{\\rtf1\\ansi\\ansicpg1251\\deff0{\\fonttbl{\\f0\\froman\\fcharset204 Times New Roman;}}\n' +
+          '\\paperw11906\\paperh16838\\margl1418\\margr567\\margt426\\margb567\\f0\\fs24\n';
+  ['Додаток 9','АТ "Ощадбанк"','Департамент банківської безпеки',
+   'Відділ захисту операцій з БПК','м. Київ, вул. Госпітальна, 12-г']
+    .forEach(l => { r += '\\pard\\qr\\fs22 ' + rtfEsc(l) + '\\par\n'; });
+  r += '\\pard\\qc\\sb240\\b\\fs26 ' + rtfEsc('Заявка на активацію (виготовлення) криптографічних') +
+       '\\line ' + rtfEsc('ключів до POS\u2013терміналів') + '\\b0\\par\n';
+  r += '\\pard\\qc\\fs24\\sb120 ' + rtfEsc('№  ' + num + ' від ' + d + ' р.') + '\\par\n';
+  r += '\\pard\\ql\\sb240 ' + rtfEsc('Необхідно активувати (виготовити) криптографічні ключі до POS\u2013терміналів') + '\\par\n';
+  r += '\\pard\\ql\\sb60\\sa120 ' + rtfEsc('Причина активації (виготовлення): ремонт.') + '\\par\n';
+  r += rtfRow(['1','Найменування PУ', ru.name], H);
+  r += rtfRow(['2','П.І.Б. співробітника відповідального за отримання, зберігання, введення першого компонента криптографічного ключа', ru.p1_fio], C);
+  r += rtfRow(['','Посада', ru.p1_pos], C);
+  r += rtfRow(['','Найменування підрозділу управління', ru.p1_dep], C);
+  r += rtfRow(['','Контактний телефон', ru.p1_phone], C);
+  r += rtfRow(['','П.І.Б. співробітника відповідального за отримання, зберігання, введення другого компонента криптографічного ключа', ru.p2_fio], C);
+  r += rtfRow(['','Посада', ru.p2_pos], C);
+  r += rtfRow(['','Найменування підрозділу управління', ru.p2_dep], C);
+  r += rtfRow(['','Контактний телефон', ru.p2_phone], C);
+  r += rtfRow(['3','Серійний номер POS\u2013терміналу','Реєстраційний (ID) номер POS\u2013терміналу'], ['qc','qc','qc']);
+  r += rtfRow(['','Ingenico i5/iCT/іWL/iPP xxx',''], ['qc','qc','qc']);
+  items.forEach(it => { r += rtfRow(['', it.sn, it.id], ['qc','qc','qc']); });
+  r += rtfRow(['4','П.І.Б. співробітника РУ, який заповнив заявку та його контактний телефон',
+               [ru.filler_fio, ru.filler_phone]], C);
+  return r + '}';
+}
+
+async function buildKK() {
+  const ids = lastExportBatch();
+  if (!ids.length) { alert('Спершу сформуйте Excel — заявки складаються з терміналів останнього формування.'); return; }
+  // групуємо по РУ
+  const groups = new Map();
+  ids.forEach(k => {
+    const c = ruCode(k);
+    if (!groups.has(c)) groups.set(c, []);
+    groups.get(c).push({ id: (registry.get(k) || {}).terminal_id || k, sn: (serials.get(k) || {}).serial || '' });
+  });
+  const missing = [...groups.keys()].filter(c => !rus.has(c) || !(rus.get(c).name || '').trim());
+  if (missing.length) {
+    alert('Не заповнено довідник РУ для кодів: ' + missing.join(', ') +
+          '\n\nВідкрийте «🏢 Довідник РУ» і внесіть дані — без них заявку не сформувати.');
+    openRu(missing[0]);
+    return;
+  }
+  const date = new Date();
+  const dd = String(date.getDate()).padStart(2, '0') + String(date.getMonth() + 1).padStart(2, '0');
+  if (!confirm(`Буде сформовано ${groups.size} заявок (${ids.length} терміналів).\n\nПродовжити?`)) return;
+
+  const upd = [];
+  let i = 0;
+  for (const [code, items] of [...groups.entries()].sort()) {
+    const ru = rus.get(code);
+    const num = (ru.doc_prefix || '') + ((parseInt(ru.last_num, 10) || 0) + 1);
+    items.sort((a, b) => String(a.id).localeCompare(String(b.id), 'uk', { numeric: true }));
+    const rtf = buildKkRtf(ru, items, num, date);
+    const blob = new Blob([rtf], { type: 'application/rtf' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(ru.short_name || ('РУ ' + code))}_криптоключі_POS_${dd}.rtf`;
+    document.body.appendChild(a);
+    setTimeout(() => { a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); }, i * 400);
+    i++;
+    const nr = Object.assign({}, ru, { last_num: (parseInt(ru.last_num, 10) || 0) + 1 });
+    rus.set(code, nr); upd.push(nr);
+  }
+  try {
+    await sbUpsert(T_RU, upd, 'code');
+    setStatus(`● сформовано заявок: ${groups.size} · ` + new Date().toLocaleTimeString('uk-UA'));
+  } catch (e) { alert('Файли сформовано, але не вдалося оновити номери заявок:\n\n' + e.message); }
 }
 
 // ===== РЕДАГУВАННЯ ЗАПИСУ РЕЄСТРУ =====
