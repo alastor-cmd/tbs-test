@@ -676,45 +676,60 @@ function rtfEsc(t) {
   return String(t == null ? '' : t).replace(/[\\{}]/g, m => '\\' + m)
     .replace(/[^\x00-\x7F]/g, c => '\\u' + c.charCodeAt(0) + '?');
 }
-function rtfRow(cells, align) {
-  const W = [420, 5472, 9792];
-  const B = '\\clbrdrt\\brdrs\\brdrw10\\clbrdrl\\brdrs\\brdrw10\\clbrdrb\\brdrs\\brdrw10\\clbrdrr\\brdrs\\brdrw10';
+const KK_BD = '\\clbrdrt\\brdrs\\brdrw10\\clbrdrl\\brdrs\\brdrw10\\clbrdrb\\brdrs\\brdrw10\\clbrdrr\\brdrs\\brdrw10';
+const KK_W1 = 420, KK_W2 = 5472, KK_W3 = 9792;
+function rtfRow(cells) {
   let d = '\\trowd\\trgaph108\\trleft-108';
-  W.forEach(w => { d += '\\clvertalc' + B + '\\cellx' + w; });
-  let body = '';
-  cells.forEach((c, i) => {
-    const txt = Array.isArray(c) ? c.filter(Boolean).map(rtfEsc).join('\\line ') : rtfEsc(c);
-    body += '\\pard\\intbl\\' + (align[i] || 'ql') + '\\li60\\ri60\\sb40\\sa40 ' + txt + '\\cell ';
+  cells.forEach(c => {
+    d += '\\clvertalc' + (c.vm === 'f' ? '\\clvmgf' : (c.vm === 'c' ? '\\clvmrg' : '')) + KK_BD + '\\cellx' + c.w;
   });
-  return d + body + '\\row\n';
+  let b = '';
+  cells.forEach(c => {
+    const txt = Array.isArray(c.t) ? c.t.filter(Boolean).map(rtfEsc).join('\\line ') : rtfEsc(c.t);
+    b += '\\pard\\intbl\\' + (c.al || 'ql') + '\\li60\\ri60\\sb30\\sa30 ' +
+         '\\fs' + (c.fs || 20) + ' ' + (c.b ? '\\b ' : '') + txt + (c.b ? '\\b0' : '') + '\\cell ';
+  });
+  return d + b + '\\row\n';
 }
 function buildKkRtf(ru, items, num, date) {
   const d = `${date.getDate()} ${KK_MON[date.getMonth()]} ${date.getFullYear()}`;
-  const C = ['qc','ql','qc'], H = ['qc','ql','ql'];
+  const N = t => ({ t, w: KK_W1, al: 'qc', fs: 24, b: true });
+  const L = t => ({ t, w: KK_W2, al: 'ql', fs: 20 });
+  const V = t => ({ t, w: KK_W3, al: 'qc', fs: 24 });
   let r = '{\\rtf1\\ansi\\ansicpg1251\\deff0{\\fonttbl{\\f0\\froman\\fcharset204 Times New Roman;}}\n' +
           '\\paperw11906\\paperh16838\\margl1418\\margr567\\margt426\\margb567\\f0\\fs24\n';
-  ['Додаток 9','АТ "Ощадбанк"','Департамент банківської безпеки',
-   'Відділ захисту операцій з БПК','м. Київ, вул. Госпітальна, 12-г']
+  r += '\\pard\\qr\\fs22 ' + rtfEsc('Додаток 9') + '\\par\n';
+  ['АТ ”Ощадбанк”','Департамент банківської безпеки','Відділ захисту операцій з БПК','м. Київ, вул. Госпітальна, 12-г']
     .forEach(l => { r += '\\pard\\qr\\fs22 ' + rtfEsc(l) + '\\par\n'; });
-  r += '\\pard\\qc\\sb240\\b\\fs26 ' + rtfEsc('Заявка на активацію (виготовлення) криптографічних') +
-       '\\line ' + rtfEsc('ключів до POS\u2013терміналів') + '\\b0\\par\n';
-  r += '\\pard\\qc\\fs24\\sb120 ' + rtfEsc('№  ' + num + ' від ' + d + ' р.') + '\\par\n';
-  r += '\\pard\\ql\\sb240 ' + rtfEsc('Необхідно активувати (виготовити) криптографічні ключі до POS\u2013терміналів') + '\\par\n';
-  r += '\\pard\\ql\\sb60\\sa120 ' + rtfEsc('Причина активації (виготовлення): ремонт.') + '\\par\n';
-  r += rtfRow(['1','Найменування PУ', ru.name], H);
-  r += rtfRow(['2','П.І.Б. співробітника відповідального за отримання, зберігання, введення першого компонента криптографічного ключа', ru.p1_fio], C);
-  r += rtfRow(['','Посада', ru.p1_pos], C);
-  r += rtfRow(['','Найменування підрозділу управління', ru.p1_dep], C);
-  r += rtfRow(['','Контактний телефон', ru.p1_phone], C);
-  r += rtfRow(['','П.І.Б. співробітника відповідального за отримання, зберігання, введення другого компонента криптографічного ключа', ru.p2_fio], C);
-  r += rtfRow(['','Посада', ru.p2_pos], C);
-  r += rtfRow(['','Найменування підрозділу управління', ru.p2_dep], C);
-  r += rtfRow(['','Контактний телефон', ru.p2_phone], C);
-  r += rtfRow(['3','Серійний номер POS\u2013терміналу','Реєстраційний (ID) номер POS\u2013терміналу'], ['qc','qc','qc']);
-  r += rtfRow(['','Ingenico i5/iCT/іWL/iPP xxx',''], ['qc','qc','qc']);
-  items.forEach(it => { r += rtfRow(['', it.sn, [it.id, it.sbon]], ['qc','qc','qc']); });
-  r += rtfRow(['4','П.І.Б. співробітника РУ, який заповнив заявку та його контактний телефон',
-               [ru.filler_fio, ru.filler_phone]], C);
+  r += '\\pard\\qc\\sb180\\sa120\\brdrt\\brdrs\\brdrw10\\brdrl\\brdrs\\brdrw10\\brdrb\\brdrs\\brdrw10' +
+       '\\brdrr\\brdrs\\brdrw10\\brsp60\\b\\fs26 ' +
+       rtfEsc('Заявка на активацію (виготовлення) криптографічних') + '\\line ' +
+       rtfEsc('ключів до POS\u2013терміналів') + '\\b0\\par\n';
+  r += '\\pard\\qc\\fs24\\sb120 ' + rtfEsc('№ ' + num + ' від ' + d + ' р.') + '\\par\n';
+  r += '\\pard\\qc\\fs24\\sb120 ' + rtfEsc('Необхідно активувати (виготовити) криптографічні ключі до POS\u2013терміналів') + '\\par\n';
+  r += '\\pard\\ql\\fs24\\sb120\\sa120 ' + rtfEsc('Причина активації (виготовлення): ') + '\\b ' + rtfEsc('ремонт.') + '\\b0\\par\n';
+  r += rtfRow([N('1'), { t:'Найменування РУ', w:KK_W2, al:'ql', fs:24, b:true }, V(ru.name)]);
+  r += rtfRow([N('2'), L('П.І.Б. співробітника відповідального за отримання, зберігання, введення першого компонента криптографічного ключа'), V(ru.p1_fio)]);
+  r += rtfRow([N(''), L('Посада'), V(ru.p1_pos)]);
+  r += rtfRow([N(''), L('Найменування підрозділу управління'), V(ru.p1_dep)]);
+  r += rtfRow([N(''), L('Контактний телефон'), V(ru.p1_phone)]);
+  r += rtfRow([N(''), L('П.І.Б. співробітника відповідального за отримання, зберігання, введення другого компонента криптографічного ключа'), V(ru.p2_fio)]);
+  r += rtfRow([N(''), L('Посада'), V(ru.p2_pos)]);
+  r += rtfRow([N(''), L('Найменування підрозділу управління'), V(ru.p2_dep)]);
+  r += rtfRow([N(''), L('Контактний телефон'), V(ru.p2_phone)]);
+  r += rtfRow([N('3'), { t:'Серійний номер POS\u2013терміналу', w:KK_W2, al:'qc', fs:26, b:true },
+                       { t:'Реєстраційний (ID) номер POS\u2013терміналу', w:KK_W3, al:'qc', fs:26, b:true }]);
+  r += rtfRow([N(''), { t:'Ingenico i5 / iCT / іWL / іPP xxx', w:KK_W3, al:'qc', fs:26, b:true }]);
+  items.forEach(it => {
+    if (it.sbon) {
+      r += rtfRow([N(''), { t:it.sn, w:KK_W2, al:'qc', fs:24, vm:'f' }, V(it.id)]);
+      r += rtfRow([N(''), { t:'',    w:KK_W2, al:'qc', fs:24, vm:'c' }, V(it.sbon)]);
+    } else {
+      r += rtfRow([N(''), { t:it.sn, w:KK_W2, al:'qc', fs:24 }, V(it.id)]);
+    }
+  });
+  r += rtfRow([N('4'), L('П.І.Б. співробітника РУ, який заповнив заявку та його контактний телефон'),
+               { t:[ru.filler_fio, ru.filler_phone], w:KK_W3, al:'qc', fs:24 }]);
   return r + '}';
 }
 
