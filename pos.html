@@ -145,7 +145,7 @@ tr:hover td{background:#f7fbf7;}
   <h1>ПОС-термінали</h1>
   <div class="header-sep"></div>
   <div class="header-sub">Профілі CASH + СБОН</div>
-  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 11:14</span>
+  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 11:21</span>
   <span class="db-status" id="headerUser"></span>
   <span class="db-status" id="dbStatus">завантаження…</span>
   <a class="back" href="index.html">← До таблиці ТБС</a>
@@ -476,7 +476,7 @@ function applyRights() {
   ['cardBranches','cardRegistry'].forEach(id => {
     const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !adm);
   });
-  const b = document.getElementById('btnAddBranch'); if (b) b.classList.toggle('hidden', !adm);
+  // «Додати ТВБВ» доступне всім
 }
 
 // ===== STATE =====
@@ -1169,7 +1169,7 @@ function openBranch(tvbv) {
   brWin = Math.min(15, Math.max(4, ...b.windows.map(o => o.n), 0) + 1);
   brMgr = Math.min(14, Math.max(3, ...b.managers.map(o => o.n), 0) + 1);
   renderSlots(b);
-  document.getElementById('brDel').style.display = tvbv ? '' : 'none';
+  document.getElementById('brDel').style.display = (tvbv && isAdmin()) ? '' : 'none';
   document.getElementById('brModalBg').classList.add('show');
   setTimeout(() => (tvbv ? document.getElementById('brAddr') : t).focus(), 50);
 }
@@ -1181,7 +1181,6 @@ async function saveBranch() {
   if (!editBranch && branches.some(b => b.tvbv === tvbv)) {
     alert('Таке ТВБВ вже є у списку — відкрийте його, щоб відредагувати.'); return;
   }
-  if (!isAdmin()) { alert('Змінювати відділення може лише адміністратор.'); return; }
   const { windows, managers } = collectSlots();
   const dup = new Set(windows.map(o => normId(o.id)));
   const row = {
