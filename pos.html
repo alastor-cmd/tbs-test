@@ -96,6 +96,12 @@ tr:hover td{background:#f7fbf7;}
 .slot input{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;outline:none;}
 .slot input:focus{border-color:#2a7a4c;box-shadow:0 0 0 3px rgba(42,122,76,.1);}
 .modal-scroll{max-height:52vh;overflow-y:auto;padding-right:4px;}
+.fcard{border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin-bottom:12px;background:#fbfdfb;}
+.fcard h4{font-size:13px;margin-bottom:8px;color:#1a3a28;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+.frow{display:flex;gap:10px;padding:3px 0;border-bottom:1px dotted var(--border2);font-size:12px;}
+.frow span:first-child{flex:0 0 235px;color:var(--muted);}
+.frow span:last-child{flex:1;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#1a3a28;}
+.frow.req span:first-child::after{content:' *';color:#a02020;}
 .kk-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-bottom:1px solid var(--border2);font-size:12px;cursor:pointer;}
 .kk-row:hover{background:#f7fbf7;}
 .kk-row input{margin:0;}
@@ -151,7 +157,7 @@ tr:hover td{background:#f7fbf7;}
     <button class="btn" onclick="openRu()">🏢 Довідник РУ</button>
     <button class="btn" id="btnKk" onclick="openKk()" disabled>📄 Виготовлення КК</button>
     <button class="btn" id="btnMail" onclick="mailRenome()" disabled>✉️ Лист реноме</button>
-    <button class="btn btn-green" id="btnBuild" onclick="buildExcel()">Сформувати Excel</button>
+    <button class="btn btn-green" id="btnBuild" onclick="openXls()">Сформувати Excel</button>
   </div>
 </div>
 
@@ -195,6 +201,36 @@ tr:hover td{background:#f7fbf7;}
       <button class="btn btn-danger" id="brDel" onclick="deleteBranch()">Видалити</button>
       <button class="btn" onclick="closeBranch()">Закрити</button>
       <button class="btn btn-green" onclick="saveBranch()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="xlsModalBg" onclick="if(event.target===this)closeXls()">
+  <div class="modal" style="max-width:760px">
+    <h3>Формування Excel</h3>
+    <div class="sub">Оберіть термінали. У файл потраплять лише ті, що мають СБОН-ідентифікатор.</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <input class="search-input" id="xlsSearch" placeholder="Пошук: ID, СН або ТВБВ" oninput="renderXlsList()">
+      <button class="btn" onclick="xlsToggleAll(true)">Вибрати всі</button>
+      <button class="btn" onclick="xlsToggleAll(false)">Зняти всі</button>
+    </div>
+    <div class="modal-scroll" id="xlsList"></div>
+    <div class="modal-actions">
+      <span id="xlsCount" style="margin-right:auto;font-size:12px;color:var(--muted)"></span>
+      <button class="btn" onclick="closeXls()">Закрити</button>
+      <button class="btn btn-green" onclick="generateXls()">Сформувати</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="formModalBg" style="z-index:70" onclick="if(event.target===this)closeForm()">
+  <div class="modal" style="max-width:720px">
+    <h3>Термінали без СБОН</h3>
+    <div class="sub">Ці термінали не потрапили у файл — заведіть їх вручну за цими даними.</div>
+    <div class="modal-scroll" id="formBody"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="copyForms()">Скопіювати все</button>
+      <button class="btn btn-green" onclick="closeForm()">Закрити</button>
     </div>
   </div>
 </div>
@@ -687,6 +723,7 @@ function rtfRow(cells) {
   cells.forEach(c => {
     const txt = Array.isArray(c.t) ? c.t.filter(Boolean).map(rtfEsc).join('\\line ') : rtfEsc(c.t);
     b += '\\pard\\intbl\\' + (c.al || 'ql') + '\\li60\\ri60\\sb30\\sa30 ' +
+         (c.f === 't' ? '\\f0 ' : '\\f1 ') +
          '\\fs' + (c.fs || 20) + ' ' + (c.b ? '\\b ' : '') + txt + (c.b ? '\\b0' : '') + '\\cell ';
   });
   return d + b + '\\row\n';
@@ -696,7 +733,7 @@ function buildKkRtf(ru, items, num, date) {
   const N = t => ({ t, w: KK_W1, al: 'qc', fs: 24, b: true });
   const L = t => ({ t, w: KK_W2, al: 'ql', fs: 20 });
   const V = t => ({ t, w: KK_W3, al: 'qc', fs: 24 });
-  let r = '{\\rtf1\\ansi\\ansicpg1251\\deff0{\\fonttbl{\\f0\\froman\\fcharset204 Times New Roman;}}\n' +
+  let r = '{\\rtf1\\ansi\\ansicpg1251\\deff0{\\fonttbl{\\f0\\froman\\fcharset204 Times New Roman;}{\\f1\\fmodern\\fcharset204 Courier New;}}\n' +
           '\\paperw11906\\paperh16838\\margl1418\\margr567\\margt426\\margb567\\f0\\fs24\n';
   r += '\\pard\\qr\\fs22 ' + rtfEsc('Додаток 9') + '\\par\n';
   ['АТ ”Ощадбанк”','Департамент банківської безпеки','Відділ захисту операцій з БПК','м. Київ, вул. Госпітальна, 12-г']
@@ -708,7 +745,8 @@ function buildKkRtf(ru, items, num, date) {
   r += '\\pard\\qc\\fs24\\sb120 ' + rtfEsc('№ ' + num + ' від ' + d + ' р.') + '\\par\n';
   r += '\\pard\\qc\\fs24\\sb120 ' + rtfEsc('Необхідно активувати (виготовити) криптографічні ключі до POS\u2013терміналів') + '\\par\n';
   r += '\\pard\\ql\\fs24\\sb120\\sa120 ' + rtfEsc('Причина активації (виготовлення): ') + '\\b ' + rtfEsc('ремонт.') + '\\b0\\par\n';
-  r += rtfRow([N('1'), { t:'Найменування РУ', w:KK_W2, al:'ql', fs:24, b:true }, V(ru.name)]);
+  r += rtfRow([N('1'), { t:'Найменування РУ', w:KK_W2, al:'ql', fs:24, b:true },
+                       { t:ru.name, w:KK_W3, al:'qc', fs:24, b:true }]);
   r += rtfRow([N('2'), L('П.І.Б. співробітника відповідального за отримання, зберігання, введення першого компонента криптографічного ключа'), V(ru.p1_fio)]);
   r += rtfRow([N(''), L('Посада'), V(ru.p1_pos)]);
   r += rtfRow([N(''), L('Найменування підрозділу управління'), V(ru.p1_dep)]);
@@ -717,9 +755,9 @@ function buildKkRtf(ru, items, num, date) {
   r += rtfRow([N(''), L('Посада'), V(ru.p2_pos)]);
   r += rtfRow([N(''), L('Найменування підрозділу управління'), V(ru.p2_dep)]);
   r += rtfRow([N(''), L('Контактний телефон'), V(ru.p2_phone)]);
-  r += rtfRow([N('3'), { t:'Серійний номер POS\u2013терміналу', w:KK_W2, al:'qc', fs:26, b:true },
-                       { t:'Реєстраційний (ID) номер POS\u2013терміналу', w:KK_W3, al:'qc', fs:26, b:true }]);
-  r += rtfRow([N(''), { t:'Ingenico i5 / iCT / іWL / іPP xxx', w:KK_W3, al:'qc', fs:26, b:true }]);
+  r += rtfRow([N('3'), { t:'Серійний номер POS\u2013терміналу', w:KK_W2, al:'qc', fs:26, b:true, f:'t' },
+                       { t:'Реєстраційний (ID) номер POS\u2013терміналу', w:KK_W3, al:'qc', fs:26, b:true, f:'t' }]);
+  r += rtfRow([N(''), { t:'Ingenico i5 / iCT / іWL / іPP xxx', w:KK_W3, al:'qc', fs:26, b:true, f:'t' }]);
   items.forEach(it => {
     if (it.sbon) {
       r += rtfRow([N(''), { t:it.sn, w:KK_W2, al:'qc', fs:24, vm:'f' }, V(it.id)]);
@@ -1095,33 +1133,113 @@ function ddmmyyyy(d) {
   const p = n => String(n).padStart(2, '0');
   return p(d.getDate()) + p(d.getMonth() + 1) + d.getFullYear();
 }
-async function buildExcel() {
-  const ids = allIds();
-  let ready = [], skipped = [];
-  ids.forEach(id => {
-    const s = serials.get(id);
-    if (!s || s.exported_at) return;              // беремо ЛИШЕ нові, ще не вивантажені
-    if (registry.has(id)) ready.push(id); else skipped.push(id);
-  });
+let xlsSel = new Set();
 
-  let isRepeat = false;
+function openXls() {
+  const cand = [...serials.keys()].filter(k => registry.has(k));
+  if (!cand.length) { alert('Немає терміналів із серійним номером, які є в реєстрі.'); return; }
+  xlsSel = new Set(cand.filter(k => !(serials.get(k) || {}).exported_at));
+  document.getElementById('xlsSearch').value = '';
+  renderXlsList();
+  document.getElementById('xlsModalBg').classList.add('show');
+}
+function closeXls() { document.getElementById('xlsModalBg').classList.remove('show'); }
+function xlsSource() {
+  return [...serials.keys()].filter(k => registry.has(k))
+    .sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
+}
+function visibleXls() {
+  const q = (document.getElementById('xlsSearch').value || '').trim().toLowerCase();
+  const info = infoByIdMap();
+  return xlsSource().filter(k => {
+    if (!q) return true;
+    const sn = (serials.get(k) || {}).serial || '', b = (info.get(k) || {}).b || {};
+    return k.toLowerCase().includes(q) || sn.toLowerCase().includes(q) ||
+           String(b.tvbv || '').toLowerCase().includes(q);
+  });
+}
+function xlsPick(el) { el.checked ? xlsSel.add(el.dataset.k) : xlsSel.delete(el.dataset.k); updateXlsCount(); }
+function xlsToggleAll(on) { visibleXls().forEach(k => on ? xlsSel.add(k) : xlsSel.delete(k)); renderXlsList(); }
+function updateXlsCount() {
+  let w = 0, n = 0;
+  xlsSel.forEach(k => { ((registry.get(k) || {}).sbon_tid ? w++ : n++); });
+  document.getElementById('xlsCount').textContent =
+    `Обрано: ${xlsSel.size} · у файл: ${w}` + (n ? ` · без СБОН: ${n}` : '');
+}
+function renderXlsList() {
+  const info = infoByIdMap(), list = visibleXls();
+  document.getElementById('xlsList').innerHTML = list.map(k => {
+    const sn = (serials.get(k) || {}), b = (info.get(k) || {}).b || {}, reg = registry.get(k) || {};
+    return `<label class="kk-row"><input type="checkbox" data-k="${k}" ${xlsSel.has(k) ? 'checked' : ''} onchange="xlsPick(this)">` +
+           `<span class="kk-id">${reg.terminal_id || k}</span>` +
+           `<span class="kk-sn">${sn.serial || '—'}</span>` +
+           `<span class="kk-tv">ТВБВ №${b.tvbv || '—'}</span>` +
+           (reg.sbon_tid ? `<span class="kk-ru">СБОН ${reg.sbon_tid}</span>`
+                         : `<span class="kk-new" style="background:#fff4d6;color:#7a5c00">без СБОН</span>`) +
+           `</label>`;
+  }).join('') || '<div class="empty">Нічого не знайдено.</div>';
+  updateXlsCount();
+}
+
+// ---- форма для терміналів без СБОН ----
+const FORM_FIELDS = [
+  ['MerchantID_0', r => r.merchant_id, true],
+  ['Terminal_id_0', r => r.terminal_id, true],
+  ['Інформація на чеку_(юр.назва)', r => r.d1, true],
+  ['Інформація у чеку (вид торгівлі)', r => r.d2, true],
+  ['Інформація у чеку_0', r => r.d3, true],
+  ['Інформація у чеку_0', r => r.d4, true],
+  ['ЄДРПОУ/ІПН_0', () => '', false],
+  ['Модель термінала', () => 'Ingenico ICT 220_Renome', false],
+  ['Номер термінала', (r, sn) => sn, true],
+  ['Тип підключення', r => /ethernet/i.test(r.conn_type || '') ? 'ETHERNET internal'
+                          : (/gprs/i.test(r.conn_type || '') ? 'GPRS' : (r.conn_type || '')), true],
+  ['Преавторізація', () => 'Ні', false],
+  ['Час відвантаження транзакцій', r => r.send_time, true],
+  ['DHCP(Y/N)', r => /^(y|yes|так)/i.test(r.dhcp || '') ? 'Так' : (r.dhcp || ''), false],
+  ['IP Address', r => r.ip, false],
+  ['Subnet Mask', r => r.mask, false],
+  ['Default Gateway', r => r.gw, false]
+];
+let formIds = [];
+function openForm(ids) {
+  formIds = ids;
+  document.getElementById('formBody').innerHTML = ids.map(k => {
+    const r = registry.get(k) || {}, sn = (serials.get(k) || {}).serial || '';
+    return `<div class="fcard"><h4>${r.terminal_id || k}</h4>` +
+      FORM_FIELDS.map(([l, fn, req]) =>
+        `<div class="frow${req ? ' req' : ''}"><span>${l}</span><span>${(fn(r, sn) || '—')}</span></div>`).join('') +
+      '</div>';
+  }).join('');
+  document.getElementById('formModalBg').classList.add('show');
+}
+function closeForm() { document.getElementById('formModalBg').classList.remove('show'); }
+function copyForms() {
+  const txt = formIds.map(k => {
+    const r = registry.get(k) || {}, sn = (serials.get(k) || {}).serial || '';
+    return (r.terminal_id || k) + '\n' +
+      FORM_FIELDS.map(([l, fn]) => l + ': ' + (fn(r, sn) || '')).join('\n');
+  }).join('\n\n');
+  navigator.clipboard.writeText(txt).then(() => alert('Скопійовано.')).catch(() => alert('Не вдалося скопіювати.'));
+}
+
+async function generateXls() {
+  const sel = [...xlsSel];
+  if (!sel.length) { alert('Оберіть хоча б один термінал.'); return; }
+  const ready = sel.filter(k => (registry.get(k) || {}).sbon_tid);
+  const noSbon = sel.filter(k => !(registry.get(k) || {}).sbon_tid);
+  if (!ready.length && !noSbon.length) return;
   if (!ready.length) {
-    const last = lastExportBatch().filter(k => registry.has(k));
-    if (last.length && confirm(`Нових терміналів із серійним номером немає.\n\n` +
-                               `Сформувати повторно останню партію — ${last.length} терміналів?`)) {
-      ready = last.slice(); isRepeat = true;
-    } else {
-      alert('Немає нових терміналів для формування.\n\n' +
-            (skipped.length ? `Із серійним номером, але поза реєстром: ${skipped.length}.\n\n` : '') +
-            'Введіть серійні номери потрібних терміналів і натисніть «Сформувати Excel».');
-      return;
-    }
+    closeXls();
+    alert(`Жоден з обраних терміналів не має СБОН — файл не формується.\n\nДані для ручного заведення: ${noSbon.length}.`);
+    openForm(noSbon);
+    return;
   }
   ready.sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
-  let msg = isRepeat ? `Повторне формування останньої партії: ${ready.length} терміналів.`
-                     : `Буде сформовано файл на ${ready.length} нових терміналів.`;
-  if (!isRepeat && skipped.length) msg += `\n\nНе потраплять (немає в реєстрі): ${skipped.length}.`;
+  let msg = `У файл потрапить терміналів: ${ready.length}.`;
+  if (noSbon.length) msg += `\n\nБез СБОН — ${noSbon.length}, для них відкриється форма з даними.`;
   if (!confirm(msg + '\n\nПродовжити?')) return;
+  closeXls();
 
   const H1 = ['№ П/п', 'Ідентифікатори CASH', '', 'Чек', '', '', '', 'Ідентифікатори СБОН', '',
               'Серійний номер терміналу', 'Час відвантаження транзакцій (формат ЧЧММ)',
@@ -1193,23 +1311,19 @@ async function buildExcel() {
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
 
-  // повторне формування не змінює склад партії
-  if (isRepeat) {
-    setStatus('● файл сформовано повторно · ' + new Date().toLocaleTimeString('uk-UA'));
-    return;
-  }
-
   // позначаємо як вивантажені
   try {
     setStatus('позначення вивантажених…');
     const now = new Date().toISOString();
-    await sbUpsert(T_SN, ready.map(id => ({ terminal_id: id, serial: serials.get(id).serial, exported_at: now })), 'terminal_id');
-    ready.forEach(id => { const s = serials.get(id); s.exported_at = now; });
+    const all = ready.concat(noSbon);
+    await sbUpsert(T_SN, all.map(id => ({ terminal_id: id, serial: serials.get(id).serial, exported_at: now })), 'terminal_id');
+    all.forEach(id => { const s = serials.get(id); s.exported_at = now; });
     render();
     setStatus('● файл сформовано · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) {
     alert('Файл сформовано, але не вдалося позначити термінали як вивантажені:\n\n' + e.message);
   }
+  if (noSbon.length) openForm(noSbon);
 }
 
 loadAll();
