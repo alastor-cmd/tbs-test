@@ -121,7 +121,7 @@ tr:hover td{background:#f7fbf7;}
   <h1>ПОС-термінали</h1>
   <div class="header-sep"></div>
   <div class="header-sub">Профілі CASH + СБОН</div>
-  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 09:15</span>
+  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 11:04</span>
   <span class="db-status" id="dbStatus">завантаження…</span>
   <a class="back" href="index.html">← До таблиці ТБС</a>
 </div>
@@ -156,7 +156,7 @@ tr:hover td{background:#f7fbf7;}
     <button class="btn" onclick="openBranch()">➕ Додати ТВБВ</button>
     <button class="btn" onclick="openRu()">🏢 Довідник РУ</button>
     <button class="btn" id="btnKk" onclick="openKk()" disabled>📄 Виготовлення КК</button>
-    <button class="btn" id="btnMail" onclick="mailRenome()" disabled>✉️ Лист реноме</button>
+    <button class="btn" id="btnMail" onclick="openRn()" disabled>✉️ Лист реноме</button>
     <button class="btn btn-green" id="btnBuild" onclick="openXls()">Сформувати Excel</button>
   </div>
 </div>
@@ -201,6 +201,24 @@ tr:hover td{background:#f7fbf7;}
       <button class="btn btn-danger" id="brDel" onclick="deleteBranch()">Видалити</button>
       <button class="btn" onclick="closeBranch()">Закрити</button>
       <button class="btn btn-green" onclick="saveBranch()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="rnModalBg">
+  <div class="modal" style="max-width:760px">
+    <h3>Лист реноме</h3>
+    <div class="sub">Оберіть термінали, які потраплять у лист.</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <input class="search-input" id="rnSearch" placeholder="Пошук: ID, СН або ТВБВ" oninput="renderRnList()">
+      <button class="btn" onclick="rnToggleAll(true)">Вибрати всі</button>
+      <button class="btn" onclick="rnToggleAll(false)">Зняти всі</button>
+    </div>
+    <div class="modal-scroll" id="rnList"></div>
+    <div class="modal-actions">
+      <span id="rnCount" style="margin-right:auto;font-size:12px;color:var(--muted)"></span>
+      <button class="btn" onclick="closeRn()">Закрити</button>
+      <button class="btn btn-green" onclick="generateRn()">Відкрити лист</button>
     </div>
   </div>
 </div>
@@ -1061,13 +1079,6 @@ function lastExportBatch() {
   serials.forEach((s, k) => { if (s.exported_at === maxTs) out.push(k); });
   return out.sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
 }
-function utf8b64(str) {
-  const bytes = new TextEncoder().encode(str);
-  let bin = '';
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  return btoa(bin);
-}
-function wrap76(s) { return s.replace(/(.{76})/g, '$1\r\n'); }
 
 function renomeBody(ids) {
   const info = infoByIdMap();
@@ -1100,34 +1111,64 @@ function renomeBody(ids) {
           '', blocks.join('\r\n\r\n')].join('\r\n');
 }
 
-function mailRenome() {
-  const ids = lastExportBatch();
-  if (!ids.length) { alert('Спершу сформуйте Excel — лист складається з терміналів останнього формування.'); return; }
-  const SUBJ = 'Заміна Desk';
-  const body = renomeBody(ids);
-  const link = 'mailto:' + RENOME_EMAIL + '?subject=' + encodeURIComponent(SUBJ) +
-               '&body=' + encodeURIComponent(body);
+let rnSel = new Set();
 
-  // Короткий лист — відкриваємо Outlook напряму
-  if (link.length <= 1800) { window.location.href = link; return; }
-
-  // Довгий — формуємо файл листа: відкриється в Outlook готовим до надсилання
-  const eml = ['To: ' + RENOME_EMAIL,
-               'Subject: =?UTF-8?B?' + utf8b64(SUBJ) + '?=',
-               'X-Unsent: 1',
-               'MIME-Version: 1.0',
-               'Content-Type: text/plain; charset=utf-8',
-               'Content-Transfer-Encoding: base64',
-               '', wrap76(utf8b64(body))].join('\r\n');
-  const blob = new Blob([eml], { type: 'message/rfc822' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `Заміна Desk ${ddmmyyyy(new Date())}.eml`;
-  document.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
-  alert(`У листі ${ids.length} терміналів — це задовго для прямого відкриття Outlook.\n\n` +
-        'Завантажено файл листа (.eml) — відкрийте його подвійним кліком, ' +
-        'Outlook покаже готовий лист із темою й текстом, лишиться натиснути «Надіслати».');
+function openRn() {
+  const cand = [...serials.keys()];
+  if (!cand.length) { alert('Немає терміналів із серійним номером.'); return; }
+  const batch = lastExportBatch();
+  rnSel = new Set(batch.length ? batch : cand);
+  document.getElementById('rnSearch').value = '';
+  renderRnList();
+  document.getElementById('rnModalBg').classList.add('show');
+}
+function closeRn() { document.getElementById('rnModalBg').classList.remove('show'); }
+function rnSource() {
+  const ts = k => (serials.get(k) || {}).entered_at || '';
+  return [...serials.keys()].sort((x, y) => (ts(y) || '').localeCompare(ts(x) || '') ||
+                                            x.localeCompare(y, 'uk', { numeric: true }));
+}
+function visibleRn() {
+  const q = (document.getElementById('rnSearch').value || '').trim().toLowerCase();
+  const info = infoByIdMap();
+  return rnSource().filter(k => {
+    if (!q) return true;
+    const sn = (serials.get(k) || {}).serial || '', b = (info.get(k) || {}).b || {};
+    return k.toLowerCase().includes(q) || sn.toLowerCase().includes(q) ||
+           String(b.tvbv || '').toLowerCase().includes(q);
+  });
+}
+function rnPick(el) { el.checked ? rnSel.add(el.dataset.k) : rnSel.delete(el.dataset.k); updateRnCount(); }
+function rnToggleAll(on) { visibleRn().forEach(k => on ? rnSel.add(k) : rnSel.delete(k)); renderRnList(); }
+function updateRnCount() {
+  const len = rnSel.size ? ('mailto:?subject=x&body=' + encodeURIComponent(renomeBody([...rnSel]))).length : 0;
+  document.getElementById('rnCount').textContent =
+    `Обрано: ${rnSel.size}` + (len > 1900 ? ' · лист задовгий, Outlook може обрізати текст' : '');
+}
+function renderRnList() {
+  const info = infoByIdMap(), batch = new Set(lastExportBatch());
+  document.getElementById('rnList').innerHTML = visibleRn().map(k => {
+    const sn = serials.get(k) || {}, b = (info.get(k) || {}).b || {}, reg = registry.get(k) || {};
+    return `<label class="kk-row"><input type="checkbox" data-k="${k}" ${rnSel.has(k) ? 'checked' : ''} onchange="rnPick(this)">` +
+           `<span class="kk-id">${reg.terminal_id || k}</span>` +
+           `<span class="kk-sn">${sn.serial || '—'}</span>` +
+           `<span class="kk-tv">ТВБВ №${b.tvbv || '—'}</span>` +
+           (batch.has(k) ? '<span class="kk-new">остання партія</span>' : '') +
+           `</label>`;
+  }).join('') || '<div class="empty">Нічого не знайдено.</div>';
+  updateRnCount();
+}
+function generateRn() {
+  const ids = [...rnSel];
+  if (!ids.length) { alert('Оберіть хоча б один термінал.'); return; }
+  ids.sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
+  const link = 'mailto:' + RENOME_EMAIL + '?subject=' + encodeURIComponent('Заміна Desk') +
+               '&body=' + encodeURIComponent(renomeBody(ids));
+  if (link.length > 1900 &&
+      !confirm(`Лист великий — ${ids.length} терміналів. Outlook може обрізати текст.\n\n` +
+               'Щоб цього уникнути, оберіть менше терміналів і сформуйте кілька листів.\n\nВсе одно відкрити?')) return;
+  closeRn();
+  window.location.href = link;
 }
 
 // ===== ФОРМУВАННЯ EXCEL =====
