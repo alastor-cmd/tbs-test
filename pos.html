@@ -121,7 +121,7 @@ tr:hover td{background:#f7fbf7;}
   <h1>ПОС-термінали</h1>
   <div class="header-sep"></div>
   <div class="header-sub">Профілі CASH + СБОН</div>
-  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 11:04</span>
+  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 11:06</span>
   <span class="db-status" id="dbStatus">завантаження…</span>
   <a class="back" href="index.html">← До таблиці ТБС</a>
 </div>
@@ -1143,7 +1143,7 @@ function rnToggleAll(on) { visibleRn().forEach(k => on ? rnSel.add(k) : rnSel.de
 function updateRnCount() {
   const len = rnSel.size ? ('mailto:?subject=x&body=' + encodeURIComponent(renomeBody([...rnSel]))).length : 0;
   document.getElementById('rnCount').textContent =
-    `Обрано: ${rnSel.size}` + (len > 1900 ? ' · лист задовгий, Outlook може обрізати текст' : '');
+    `Обрано: ${rnSel.size}` + (len > 1900 ? ' · завеликий для прямого відкриття — завантажиться файлом' : '');
 }
 function renderRnList() {
   const info = infoByIdMap(), batch = new Set(lastExportBatch());
@@ -1158,17 +1158,43 @@ function renderRnList() {
   }).join('') || '<div class="empty">Нічого не знайдено.</div>';
   updateRnCount();
 }
+function utf8b64(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function wrap76(t) { return t.replace(/(.{76})/g, '$1\r\n'); }
+
 function generateRn() {
   const ids = [...rnSel];
   if (!ids.length) { alert('Оберіть хоча б один термінал.'); return; }
   ids.sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
-  const link = 'mailto:' + RENOME_EMAIL + '?subject=' + encodeURIComponent('Заміна Desk') +
-               '&body=' + encodeURIComponent(renomeBody(ids));
-  if (link.length > 1900 &&
-      !confirm(`Лист великий — ${ids.length} терміналів. Outlook може обрізати текст.\n\n` +
-               'Щоб цього уникнути, оберіть менше терміналів і сформуйте кілька листів.\n\nВсе одно відкрити?')) return;
+  const SUBJ = 'Заміна Desk';
+  const body = renomeBody(ids);
+  const link = 'mailto:' + RENOME_EMAIL + '?subject=' + encodeURIComponent(SUBJ) +
+               '&body=' + encodeURIComponent(body);
   closeRn();
-  window.location.href = link;
+
+  // Короткий лист — Outlook відкривається одразу
+  if (link.length <= 1900) { window.location.href = link; return; }
+
+  // Довгий — завантажуємо файл листа, він відкривається в Outlook готовим
+  const eml = ['To: ' + RENOME_EMAIL,
+               'Subject: =?UTF-8?B?' + utf8b64(SUBJ) + '?=',
+               'X-Unsent: 1',
+               'MIME-Version: 1.0',
+               'Content-Type: text/plain; charset=utf-8',
+               'Content-Transfer-Encoding: base64',
+               '', wrap76(utf8b64(body))].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([eml], { type: 'message/rfc822' }));
+  a.download = `Заміна Desk ${ddmmyyyy(new Date())}.eml`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  alert(`У листі ${ids.length} терміналів — це задовго, щоб Outlook відкрив його напряму.\n\n` +
+        'Завантажено файл листа — відкрийте його подвійним кліком, ' +
+        'Outlook покаже готовий лист, лишиться натиснути «Надіслати».');
 }
 
 // ===== ФОРМУВАННЯ EXCEL =====
