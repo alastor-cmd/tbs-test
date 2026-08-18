@@ -145,7 +145,7 @@ tr:hover td{background:#f7fbf7;}
   <h1>ПОС-термінали</h1>
   <div class="header-sep"></div>
   <div class="header-sub">Профілі CASH + СБОН</div>
-  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 11:21</span>
+  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 12:24</span>
   <span class="db-status" id="headerUser"></span>
   <span class="db-status" id="dbStatus">завантаження…</span>
   <a class="back" href="index.html">← До таблиці ТБС</a>
@@ -559,14 +559,14 @@ function importBranches(input) {
       const hdr = aoa[0].map(h => norm(h).toLowerCase());
       const wIdx = [], mIdx = [];
       hdr.forEach((h, i) => {
-        if (h.includes('вікно')) wIdx.push(i);
+        if (h.includes('вікно') || h.includes('виїзд')) wIdx.push(i);
         else if (h.includes('менеджер')) mIdx.push(i);
       });
-      if (!wIdx.length && !mIdx.length) throw new Error('Не знайдено колонок «Вікно…» та «Менеджер…». Перевірте, що це Додаток 1.');
+      if (!wIdx.length && !mIdx.length) throw new Error('Не знайдено колонок «Вікно…»/«Виїзд…» та «Менеджер…». Перевірте файл.');
       const rows = [];
       for (let i = 1; i < aoa.length; i++) {
         const r = aoa[i]; if (!r) continue;
-        const tvbv = norm(r[0]); if (!tvbv) continue;
+        const tvbv = norm(r[0]).replace(/^\s*ТВБВ\s*№?\s*/i, '').trim(); if (!tvbv) continue;
         const pick = idxs => idxs.map((i2, k) => ({ n: k + 1, id: norm(r[i2]) })).filter(o => o.id !== '');
         rows.push({ tvbv, address: norm(r[1]), contact: norm(r[2]),
                     windows: pick(wIdx), managers: pick(mIdx) });
