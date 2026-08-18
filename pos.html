@@ -77,6 +77,18 @@ tr:hover td{background:#f7fbf7;}
 .id-btn.absent{border-style:dashed;color:#9aa89e;background:#fafbfa;}
 .empty{padding:40px;text-align:center;color:var(--muted);}
 
+.login-screen{position:fixed;inset:0;background:#f0f5f1;z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-box{background:#fff;border:1px solid var(--border);border-radius:14px;padding:28px 30px;max-width:390px;width:100%;box-shadow:0 10px 34px rgba(26,58,40,.10);}
+.login-box h2{font-size:16px;margin-bottom:4px;color:#1a3a28;}
+.login-box .sub{font-size:12px;color:var(--muted);margin-bottom:18px;}
+.login-box input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;margin-bottom:10px;font-family:inherit;}
+.login-box input:focus{border-color:#2a7a4c;box-shadow:0 0 0 3px rgba(42,122,76,.12);}
+.login-users{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+.login-users button{font-size:11px;padding:5px 9px;border:1px solid var(--border);background:#f5f8f5;border-radius:6px;cursor:pointer;font-family:inherit;color:#2a4a34;}
+.login-users button:hover{border-color:#2a7a4c;background:#eaf3ea;}
+.login-err{color:#a02020;font-size:12px;margin-bottom:10px;display:none;}
+.login-err.show{display:block;}
+.hidden{display:none !important;}
 .modal-bg{pointer-events:auto;display:none;position:fixed;inset:0;background:rgba(16,32,22,.45);z-index:50;align-items:center;justify-content:center;padding:16px;}
 .modal-bg.show{display:flex;}
 .modal{background:#fff;border-radius:12px;max-width:460px;width:100%;padding:20px;box-shadow:0 12px 40px rgba(0,0,0,.2);}
@@ -116,14 +128,28 @@ tr:hover td{background:#f7fbf7;}
 </head>
 <body>
 
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <h2>ПОС-термінали</h2>
+    <div class="sub">Вхід тими самими даними, що й у таблиці ТБС</div>
+    <div class="login-users" id="loginUsers"></div>
+    <input type="text" id="loginInput" placeholder="Логін" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+    <input type="password" id="passwordInput" placeholder="Пароль" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="login-err" id="loginError"></div>
+    <button class="btn btn-green" style="width:100%;padding:9px" onclick="doLogin()">Увійти</button>
+  </div>
+</div>
+
 <div class="header">
   <div class="header-logo">ОЩ</div>
   <h1>ПОС-термінали</h1>
   <div class="header-sep"></div>
   <div class="header-sub">Профілі CASH + СБОН</div>
-  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 11:06</span>
+  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 11:14</span>
+  <span class="db-status" id="headerUser"></span>
   <span class="db-status" id="dbStatus">завантаження…</span>
   <a class="back" href="index.html">← До таблиці ТБС</a>
+  <button class="back" style="margin-left:8px" onclick="doLogout()">Вийти</button>
 </div>
 
 <div class="upload-section">
@@ -153,7 +179,7 @@ tr:hover td{background:#f7fbf7;}
   </select>
   <div class="toolbar-right">
     <span class="total-info" id="totalInfo"></span>
-    <button class="btn" onclick="openBranch()">➕ Додати ТВБВ</button>
+    <button class="btn" id="btnAddBranch" onclick="openBranch()">➕ Додати ТВБВ</button>
     <button class="btn" onclick="openRu()">🏢 Довідник РУ</button>
     <button class="btn" id="btnKk" onclick="openKk()" disabled>📄 Виготовлення КК</button>
     <button class="btn" id="btnMail" onclick="openRn()" disabled>✉️ Лист реноме</button>
@@ -362,6 +388,97 @@ async function sbDeleteEq(table, col, val) {
   if (!r.ok) throw new Error(await r.text());
 }
 
+// ===== КОРИСТУВАЧІ, ВХІД, ЖУРНАЛ =====
+const USERS = {
+  'PavelkoOV':      { fio: 'Павелко О.В.',      full: 'Павелко Олександр Валентинович' },
+  'PilkevichAA':    { fio: 'Пількевич А.А.',     full: 'Пількевич Андрій Анатолійович' },
+  'DanevichNS':     { fio: 'Даневич Н.С.',       full: 'Даневич Наталія Сергіївна' },
+  'strazhevskijoo': { fio: 'Стражевський О.О.',  full: 'Стражевський Олексій Олексійович' },
+  'dembnovetskyiiv':{ fio: 'Дембновецький І.В.', full: 'Дембновецький Іван Володимирович' }
+};
+const ADMINS = ['PavelkoOV'];          // імпорт, видалення, правка реєстру
+let currentUser = null, currentUserFio = '', userSettings = {};
+const isAdmin = () => ADMINS.includes(currentUser);
+
+async function hashPwd(pwd) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pwd + 'atm_tbs_salt'));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function machineId() {
+  let id = localStorage.getItem('atm_machine_id');
+  if (!id) { id = 'PC-' + Math.random().toString(36).substr(2,6).toUpperCase(); localStorage.setItem('atm_machine_id', id); }
+  return id;
+}
+function browserInfo() {
+  const ua = navigator.userAgent;
+  return ua.includes('Edge') ? 'Edge' : ua.includes('Chrome') ? 'Chrome' : ua.includes('Firefox') ? 'Firefox' : 'Browser';
+}
+function logAction(action, atmId, details) {
+  const u = currentUser || 'unknown';
+  fetch(`${SB_URL}/rest/v1/atm_log`, {
+    method: 'POST',
+    headers: Object.assign({}, sbHeaders, { 'Prefer': 'return=minimal' }),
+    body: JSON.stringify({
+      log_time: new Date().toLocaleString('uk-UA', { day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit' }),
+      login: u, user_fio: (USERS[u] || {}).fio || u,
+      action: 'pos_' + action, atm_id: atmId || '—', details: details || '',
+      computer: localStorage.getItem('atm_computer_name') || machineId(),
+      browser: browserInfo()
+    })
+  }).catch(() => {});
+}
+
+async function initAuth() {
+  document.getElementById('loginUsers').innerHTML = Object.entries(USERS)
+    .map(([l, u]) => `<button onclick="quickLogin('${l}')">${u.fio}</button>`).join('');
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/atm_settings?select=login,pwd_hash,bypass`, { headers: sbHeaders });
+    (await r.json()).forEach(x => { userSettings[x.login] = x; });
+  } catch (e) { /* без налаштувань вхід лише за логіном */ }
+  const saved = localStorage.getItem('atm_session');
+  if (saved && USERS[saved]) { loginSuccess(saved); return; }
+  document.getElementById('loginInput').focus();
+}
+async function quickLogin(login) {
+  document.getElementById('loginInput').value = login;
+  const st = userSettings[login];
+  if (st && st.pwd_hash && !st.bypass) document.getElementById('passwordInput').focus();
+  else doLogin();
+}
+async function doLogin() {
+  const login = document.getElementById('loginInput').value.trim();
+  const err = document.getElementById('loginError');
+  if (!USERS[login]) { err.textContent = 'Невідомий логін.'; err.classList.add('show'); return; }
+  const st = userSettings[login];
+  if (st && st.pwd_hash && !st.bypass) {
+    const h = await hashPwd(document.getElementById('passwordInput').value);
+    if (h !== st.pwd_hash) { err.textContent = 'Невірний пароль.'; err.classList.add('show'); return; }
+  }
+  loginSuccess(login);
+}
+function loginSuccess(login) {
+  currentUser = login; currentUserFio = USERS[login].fio;
+  localStorage.setItem('atm_session', login);
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('headerUser').textContent = USERS[login].full;
+  applyRights();
+  logAction('open', '—', 'Відкрито сторінку ПОС');
+  loadAll();
+  startAutoRefresh();
+}
+function doLogout() {
+  logAction('logout', '—', 'Вихід зі сторінки ПОС');
+  localStorage.removeItem('atm_session');
+  location.reload();
+}
+function applyRights() {
+  const adm = isAdmin();
+  ['cardBranches','cardRegistry'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !adm);
+  });
+  const b = document.getElementById('btnAddBranch'); if (b) b.classList.toggle('hidden', !adm);
+}
+
 // ===== STATE =====
 let branches = [];              // [{tvbv,address,contact,windows[],managers[]}]
 let registry = new Map();       // terminal_id -> row
@@ -385,9 +502,9 @@ function normList(a) {
 }
 
 // ===== ЗАВАНТАЖЕННЯ =====
-async function loadAll() {
+async function loadAll(silent) {
   try {
-    setStatus('завантаження…');
+    if (!silent) setStatus('завантаження…');
     const [b, reg, sn, ru] = await Promise.all([
       sbGetAll(T_BRANCH, 'tvbv.asc'),
       sbGetAll(T_REG, 'terminal_id.asc'),
@@ -406,16 +523,30 @@ async function loadAll() {
     document.getElementById('cardRegistry').classList.toggle('loaded', registry.size > 0);
     document.getElementById('subBranches').textContent = branches.length ? `${branches.length} відділень у базі` : 'ТВБВ, адреси, ID кас і менеджерів';
     document.getElementById('subRegistry').textContent = registry.size ? `${registry.size} терміналів у базі` : 'профілі терміналів для Excel';
-    setStatus('● готово · ' + new Date().toLocaleTimeString('uk-UA'));
+    setStatus('● оновлено · ' + new Date().toLocaleTimeString('uk-UA'));
     render();
   } catch (e) {
+    if (silent) return;
     setStatus('помилка завантаження');
     alert('Не вдалося завантажити дані.\n\n' + e.message + '\n\nЙмовірно, ще не створені таблиці в Supabase.');
   }
 }
 
+// ===== АВТООНОВЛЕННЯ =====
+let refreshTimer = null;
+function anyModalOpen() {
+  return !!document.querySelector('.modal-bg.show');
+}
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => {
+    if (!anyModalOpen() && document.visibilityState === 'visible') loadAll(true);
+  }, 45000);
+}
+
 // ===== ІМПОРТ: ДОДАТОК 1 =====
 function importBranches(input) {
+  if (!isAdmin()) { alert('Імпорт доступний лише адміністратору.'); input.value=''; return; }
   const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = async e => {
@@ -464,6 +595,7 @@ function importBranches(input) {
       setImport(`знайдено ${merged.length} відділень${dupCount ? ` (об'єднано ${dupCount} дубл.)` : ''}, зберігаю…`);
       await sbUpsert(T_BRANCH, merged, 'tvbv');
       setImport(`✓ імпортовано ${merged.length} відділень${dupCount ? ` · об'єднано дублікатів ТВБВ: ${dupCount}` : ''}`);
+      logAction('import_branches', '—', `Імпорт Додатка 1: ${merged.length} відділень`);
       await loadAll();
     } catch (err) {
       setImport(''); alert('Помилка імпорту Додатка 1:\n\n' + err.message);
@@ -474,6 +606,7 @@ function importBranches(input) {
 
 // ===== ІМПОРТ: РЕЄСТР cash_POS =====
 function importRegistry(input) {
+  if (!isAdmin()) { alert('Імпорт доступний лише адміністратору.'); input.value=''; return; }
   const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = async e => {
@@ -506,6 +639,7 @@ function importRegistry(input) {
       setImport(`знайдено ${rows.length} терміналів, зберігаю…`);
       await sbUpsert(T_REG, rows, 'terminal_id');
       setImport(`✓ імпортовано ${rows.length} терміналів`);
+      logAction('import_registry', '—', `Імпорт реєстру: ${rows.length} терміналів`);
       await loadAll();
     } catch (err) {
       setImport(''); alert('Помилка імпорту реєстру:\n\n' + err.message);
@@ -640,6 +774,7 @@ document.getElementById('mSerial').addEventListener('keydown', function (e) {
 async function saveSerial() {
   if (!curId) return;
   const val = document.getElementById('mSerial').value.trim();
+  const prevSn = (serials.get(curId) || {}).serial || '';
   if (!val) { alert('Введіть серійний номер або натисніть «Видалити».'); return; }
   if (!/^[A-Za-z0-9]+$/.test(val)) { alert('Серійний номер може містити лише латинські літери та цифри.'); return; }
   try {
@@ -647,6 +782,7 @@ async function saveSerial() {
     const nowIso = new Date().toISOString();
     await sbUpsert(T_SN, [{ terminal_id: curId, serial: val, exported_at: null, entered_at: nowIso }], 'terminal_id');
     serials.set(curId, { serial: val, exported_at: null, entered_at: nowIso });
+    logAction(prevSn ? 'sn_edit' : 'sn_add', curId, prevSn ? `СН: ${prevSn} → ${val}` : `СН: ${val}`);
     closeModal(); render();
     setStatus('● збережено · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) { alert('Не вдалося зберегти:\n\n' + e.message); setStatus('помилка збереження'); }
@@ -656,8 +792,10 @@ async function deleteSerial() {
   if (!confirm('Видалити серійний номер для ' + curId + '?')) return;
   try {
     setStatus('видалення…');
+    const gone = (serials.get(curId) || {}).serial || '';
     await sbDeleteEq(T_SN, 'terminal_id', curId);
     serials.delete(curId);
+    logAction('sn_delete', curId, 'Видалено СН: ' + gone);
     closeModal(); render();
     setStatus('● видалено · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) { alert('Не вдалося видалити:\n\n' + e.message); }
@@ -870,6 +1008,15 @@ async function generateKK() {
   const dd = String(date.getDate()).padStart(2, '0') + String(date.getMonth() + 1).padStart(2, '0');
   if (!confirm(`Буде сформовано ${groups.size} заявок (${ids.length} терміналів).\n\nПродовжити?`)) return;
 
+  // свіжі номери з бази — щоб двоє одночасно не отримали однаковий
+  try {
+    const fresh = await sbGetAll(T_RU, 'code.asc');
+    fresh.forEach(r => {
+      const cur = rus.get(String(r.code).trim());
+      if (cur) cur.last_num = Math.max(parseInt(cur.last_num, 10) || 0, parseInt(r.last_num, 10) || 0);
+    });
+  } catch (e) { /* якщо не вдалось — працюємо з локальними */ }
+
   const upd = [];
   let i = 0;
   for (const [code, items] of [...groups.entries()].sort()) {
@@ -890,6 +1037,7 @@ async function generateKK() {
   closeKk();
   try {
     await sbUpsert(T_RU, upd, 'code');
+    logAction('kk_build', '—', `Заявки на КК: ${groups.size} РУ, ${ids.length} терміналів`);
     setStatus(`● сформовано заявок: ${groups.size} · ` + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) { alert('Файли сформовано, але не вдалося оновити номери заявок:\n\n' + e.message); }
 }
@@ -948,6 +1096,7 @@ function closeReg() { document.getElementById('regModalBg').classList.remove('sh
 
 async function saveReg() {
   if (!curId) return;
+  if (!isAdmin()) { alert('Змінювати реєстр може лише адміністратор.'); return; }
   const existing = registry.get(curId);
   const row = { terminal_id: existing ? existing.terminal_id : normId(curRawId) };
   document.querySelectorAll('#regFields input').forEach(inp => { row[inp.dataset.rk] = inp.value.trim(); });
@@ -955,6 +1104,7 @@ async function saveReg() {
     setStatus('збереження реєстру…');
     await sbUpsert(T_REG, [row], 'terminal_id');
     registry.set(curId, row);
+    logAction(existing ? 'reg_edit' : 'reg_add', row.terminal_id, 'Змінено дані реєстру');
     closeReg(); fillRegInfo(); render();
     setStatus('● реєстр оновлено · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) { alert('Не вдалося зберегти дані реєстру:\n\n' + e.message); setStatus('помилка збереження'); }
@@ -962,11 +1112,13 @@ async function saveReg() {
 async function deleteReg() {
   const existing = registry.get(curId);
   if (!existing) return;
+  if (!isAdmin()) { alert('Видаляти записи реєстру може лише адміністратор.'); return; }
   if (!confirm(`Видалити ${existing.terminal_id} з реєстру?\n\nТермінал перестане потрапляти у файли.`)) return;
   try {
     setStatus('видалення з реєстру…');
     await sbDeleteEq(T_REG, 'terminal_id', existing.terminal_id);
     registry.delete(curId);
+    logAction('reg_delete', existing.terminal_id, 'Видалено з реєстру');
     closeReg(); fillRegInfo(); render();
     setStatus('● видалено з реєстру · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) { alert('Не вдалося видалити:\n\n' + e.message); }
@@ -1029,6 +1181,7 @@ async function saveBranch() {
   if (!editBranch && branches.some(b => b.tvbv === tvbv)) {
     alert('Таке ТВБВ вже є у списку — відкрийте його, щоб відредагувати.'); return;
   }
+  if (!isAdmin()) { alert('Змінювати відділення може лише адміністратор.'); return; }
   const { windows, managers } = collectSlots();
   const dup = new Set(windows.map(o => normId(o.id)));
   const row = {
@@ -1041,6 +1194,7 @@ async function saveBranch() {
   try {
     setStatus('збереження відділення…');
     await sbUpsert(T_BRANCH, [row], 'tvbv');
+    logAction(editBranch ? 'branch_edit' : 'branch_add', tvbv, `Кас: ${windows.length}, менеджерів: ${row.managers.length}`);
     closeBranch();
     await loadAll();
     setStatus('● збережено · ' + new Date().toLocaleTimeString('uk-UA'));
@@ -1048,10 +1202,12 @@ async function saveBranch() {
 }
 async function deleteBranch() {
   if (!editBranch) return;
+  if (!isAdmin()) { alert('Видаляти відділення може лише адміністратор.'); return; }
   if (!confirm(`Видалити відділення ТВБВ №${editBranch} з усіма його ID?\n\nВведені серійні номери при цьому не стираються.`)) return;
   try {
     setStatus('видалення…');
     await sbDeleteEq(T_BRANCH, 'tvbv', editBranch);
+    logAction('branch_delete', editBranch, 'Видалено відділення');
     closeBranch();
     await loadAll();
     setStatus('● видалено · ' + new Date().toLocaleTimeString('uk-UA'));
@@ -1175,6 +1331,7 @@ function generateRn() {
   const link = 'mailto:' + RENOME_EMAIL + '?subject=' + encodeURIComponent(SUBJ) +
                '&body=' + encodeURIComponent(body);
   closeRn();
+  logAction('renome_mail', '—', `Лист реноме: ${ids.length} терміналів`);
 
   // Короткий лист — Outlook відкривається одразу
   if (link.length <= 1900) { window.location.href = link; return; }
@@ -1399,6 +1556,7 @@ async function generateXls() {
     const all = ready.concat(noSbon);
     await sbUpsert(T_SN, all.map(id => ({ terminal_id: id, serial: serials.get(id).serial, exported_at: now })), 'terminal_id');
     all.forEach(id => { const s = serials.get(id); s.exported_at = now; });
+    logAction('xls_build', '—', `Excel: ${ready.length} терміналів` + (noSbon.length ? `, без СБОН: ${noSbon.length}` : ''));
     render();
     setStatus('● файл сформовано · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) {
@@ -1407,7 +1565,7 @@ async function generateXls() {
   if (noSbon.length) openForm(noSbon);
 }
 
-loadAll();
+initAuth();
 </script>
 </body>
 </html>
