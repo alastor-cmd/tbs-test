@@ -382,7 +382,8 @@ async function loadAll() {
       windows: normList(r.windows), managers: normList(r.managers)
     }));
     registry = new Map(reg.map(r => [normId(r.terminal_id), r]));
-    serials  = new Map(sn.map(r => [normId(r.terminal_id), { serial: norm(r.serial), exported_at: r.exported_at || null }]));
+    serials  = new Map(sn.map(r => [normId(r.terminal_id),
+      { serial: norm(r.serial), exported_at: r.exported_at || null, entered_at: r.entered_at || null }]));
     document.getElementById('cardBranches').classList.toggle('loaded', branches.length > 0);
     document.getElementById('cardRegistry').classList.toggle('loaded', registry.size > 0);
     document.getElementById('subBranches').textContent = branches.length ? `${branches.length} відділень у базі` : 'ТВБВ, адреси, ID кас і менеджерів';
@@ -625,8 +626,9 @@ async function saveSerial() {
   if (!/^[A-Za-z0-9]+$/.test(val)) { alert('Серійний номер може містити лише латинські літери та цифри.'); return; }
   try {
     setStatus('збереження…');
-    await sbUpsert(T_SN, [{ terminal_id: curId, serial: val, exported_at: null }], 'terminal_id');
-    serials.set(curId, { serial: val, exported_at: null });
+    const nowIso = new Date().toISOString();
+    await sbUpsert(T_SN, [{ terminal_id: curId, serial: val, exported_at: null, entered_at: nowIso }], 'terminal_id');
+    serials.set(curId, { serial: val, exported_at: null, entered_at: nowIso });
     closeModal(); render();
     setStatus('● збережено · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) { alert('Не вдалося зберегти:\n\n' + e.message); setStatus('помилка збереження'); }
@@ -1138,15 +1140,26 @@ let xlsSel = new Set();
 function openXls() {
   const cand = [...serials.keys()].filter(k => registry.has(k));
   if (!cand.length) { alert('Немає терміналів із серійним номером, які є в реєстрі.'); return; }
-  xlsSel = new Set(cand.filter(k => !(serials.get(k) || {}).exported_at));
+  const fresh = cand.filter(k => !(serials.get(k) || {}).exported_at);
+  if (fresh.length) {
+    xlsSel = new Set(fresh);
+  } else {
+    // усе вже вивантажено — позначаємо останню за часом зміни партію
+    let maxTs = '';
+    cand.forEach(k => { const t = (serials.get(k) || {}).entered_at || ''; if (t > maxTs) maxTs = t; });
+    const day = maxTs.slice(0, 10);
+    xlsSel = new Set(day ? cand.filter(k => ((serials.get(k) || {}).entered_at || '').slice(0, 10) === day) : []);
+  }
   document.getElementById('xlsSearch').value = '';
   renderXlsList();
   document.getElementById('xlsModalBg').classList.add('show');
 }
 function closeXls() { document.getElementById('xlsModalBg').classList.remove('show'); }
 function xlsSource() {
+  const ts = k => (serials.get(k) || {}).entered_at || '';
   return [...serials.keys()].filter(k => registry.has(k))
-    .sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
+    .sort((a, b) => (ts(b) || '').localeCompare(ts(a) || '') ||
+                    a.localeCompare(b, 'uk', { numeric: true }));
 }
 function visibleXls() {
   const q = (document.getElementById('xlsSearch').value || '').trim().toLowerCase();
@@ -1174,6 +1187,7 @@ function renderXlsList() {
            `<span class="kk-id">${reg.terminal_id || k}</span>` +
            `<span class="kk-sn">${sn.serial || '—'}</span>` +
            `<span class="kk-tv">ТВБВ №${b.tvbv || '—'}</span>` +
+           `<span class="kk-tv">${sn.entered_at ? sn.entered_at.slice(8,10)+'.'+sn.entered_at.slice(5,7) : ''}</span>` +
            (reg.sbon_tid ? `<span class="kk-ru">СБОН ${reg.sbon_tid}</span>`
                          : `<span class="kk-new" style="background:#fff4d6;color:#7a5c00">без СБОН</span>`) +
            `</label>`;
