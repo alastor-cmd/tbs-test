@@ -2055,7 +2055,7 @@ function ruNameByAtmId(id) {
   if (RU_NAME_FIX[code]) return RU_NAME_FIX[code];
   const r = (window.__ruCache || {})[code];
   if (!r) return 'РУ ' + code;
-  return String(r.name || '').replace(/\bОУ\b/, 'РУ');
+  return String(r.name || '').replace(/\s*ОУ\s*$/, ' РУ').trim();
 }
 async function loadRuCache() {
   if (window.__ruCache) return;
