@@ -1978,6 +1978,7 @@ const INSTALL_FIELDS = [
   { k:'keys_phone',   l:'МОЛ — телефон' },
   { k:'keys_addr',    l:'Адреса отримання фізичних ключів' },
   { k:'cass_addr',    l:'Адреса налаштування касет' },
+  { k:'cass_fio',     l:'Касети — ПІБ контактної особи' },
   { k:'cass_phone',   l:'Касети — телефон контактної особи' },
   { k:'contact_fio',  l:'Контактна особа — ПІБ' },
   { k:'contact_phone',l:'Контактна особа — телефон' },
@@ -1996,7 +1997,7 @@ const CARD_GROUPS = [
   { title:'Дати', keys:['date pog','Date SLO','Date Start'] },
   { title:'Примітка', keys:['Note'] },
   { title:'Інсталяція', keys:['serial_no','term_type','ip_term','keys_place','keys_mol','keys_phone',
-                              'keys_addr','cass_addr','cass_phone','contact_fio','contact_phone',
+                              'keys_addr','cass_addr','cass_fio','cass_phone','contact_fio','contact_phone',
                               'lan_gw','lan_mask','wan_ip','wan_mask','wan_gw','modem_note'] },
 ];
 let cardRow = null, cardMode = 'edit', cardIdx = -1;
@@ -2177,7 +2178,7 @@ function instEmailBody(v) {
     'По завершенню робіт надати чеклист.',
     '',
     `Прохання сформувати наряд інженеру щоб отримати ключі від сервісної частини для АТМ ${cardRow.ID || ''} за адресою ${v.keys_addr || '—'}.`,
-    `Також прохання виконати налаштування касет ДВОХ комплектів, касети знаходяться на секторі перерахунку за адресою: ${v.cass_addr || '—'} ${v.cass_phone || ''}`,
+    `Також прохання виконати налаштування касет ДВОХ комплектів, касети знаходяться на секторі перерахунку за адресою: ${v.cass_addr || '—'}, ${v.cass_fio || '—'} ${v.cass_phone || ''}`,
     '',
     ...(v.modem_note ? ['Дані по каналу зв\u2019язку:', v.modem_note, ''] : []),
     `Контакт:  ${v.contact_fio || '—'} ${v.contact_phone || ''}.`,
