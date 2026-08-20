@@ -2199,7 +2199,8 @@ async function buildInstallDocx(v) {
     EMAIL: v.__mail, SENDER: (USERS[currentUser] || {}).full || currentUserFio,
     SENDER_PHONE: v.__phone,
     CONTACT: v.contact_fio, CONTACT_PHONE: v.contact_phone,
-    IP_TERM: v.ip_term, IP_ROUTER: v.lan_gw, IP_MASK: v.lan_mask
+    IP_TERM: v.ip_term, IP_ROUTER: v.lan_gw, IP_MASK: v.lan_mask,
+    DATE: (d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`)(new Date())
   };
   let xml = await zip.file('word/document.xml').async('string');
   Object.entries(map).forEach(([k, val]) => {
