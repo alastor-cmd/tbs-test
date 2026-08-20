@@ -8,6 +8,7 @@
 <title>ATM TBS · Ощадбанк</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root {
   --bg:#f5f5f4; --surface:#fff; --border:#d6d3d1; --border-strong:#a8a29e;
@@ -208,7 +209,13 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 .card-fields label.card-check{flex-direction:row;align-items:center;gap:7px;font-size:13px;color:#222;padding:4px 0;}
 .card-fields input[type=text],.card-fields input[type=date],.card-fields select,.card-fields textarea{padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;color:#222;font-family:inherit;}
 .card-fields input[type=checkbox]{width:18px;height:18px;}
-.card-mail{margin:0 0 14px;display:flex;gap:8px;}
+.card-mail{margin:0 0 14px;display:flex;gap:8px;flex-wrap:wrap;}
+.inst-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:4px;}
+.inst-cell label{display:block;font-size:10px;font-weight:700;color:#5a7a62;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;}
+.inst-cell input{width:100%;padding:7px 9px;border:1px solid #c8dac0;border-radius:6px;font-size:12px;font-family:inherit;outline:none;}
+.inst-cell input:focus{border-color:#2a7a4c;box-shadow:0 0 0 3px rgba(42,122,76,.1);}
+.inst-scroll{max-height:56vh;overflow-y:auto;padding-right:4px;}
+.modal-overlay.show{display:flex;}
 .card-actions{margin-top:16px;display:flex;gap:8px;justify-content:flex-end;}
 .btn-edit{background:#0369a1;color:#fff;border:1px solid #0369a1;border-radius:4px;cursor:pointer;padding:1px 4px;font-size:11px;line-height:1.4;}
 .btn-edit:hover{background:#075985;}
@@ -255,7 +262,7 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 <div id="appHeader" style="display:none">
   <svg width="24" height="24" viewBox="0 0 48 48" fill="none"><rect width="48" height="48" rx="10" fill="rgba(255,255,255,.2)"/><rect x="10" y="14" width="28" height="20" rx="3" fill="white" opacity="0.9"/><rect x="14" y="22" width="8" height="8" rx="1" fill="#1e40af"/></svg>
   <h1>Редактор заявок ATM</h1>
-  <span class="version-badge" id="versionBadge" onclick="showChangelog()" title="Журнал змін">v1.4</span>
+  <span class="version-badge" id="versionBadge" onclick="showChangelog()" title="Журнал змін">v1.5</span>
   <span class="db-status" id="dbStatus">● Завантаження...</span>
   <div class="user-badge">
     <strong id="headerUser"></strong>
@@ -327,6 +334,19 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 
   <div class="table-wrap" id="tableWrap">
     <div class="empty-state"><p>Завантаження даних з бази...</p></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="instModalBg" style="z-index:120">
+  <div class="modal" style="max-width:780px">
+    <h3 id="instTitle">Заявка на інсталяцію</h3>
+    <div class="sub" id="instSub" style="font-size:12px;color:#5a7a62;margin-bottom:12px"></div>
+    <div class="inst-scroll" id="instFields"></div>
+    <div class="card-actions">
+      <button class="btn" onclick="closeInstall()">Закрити</button>
+      <button class="btn" onclick="saveInstall()">Зберегти в картку</button>
+      <button class="btn btn-primary" onclick="makeInstallLetter()">📧 Сформувати лист</button>
+    </div>
   </div>
 </div>
 
@@ -558,7 +578,7 @@ async function initDB() {
 
 // (Мертвий код IndexedDB видалено — застосунок працює напряму з Supabase)
 function rowToSB(row, sheet) {
-  return {
+  const out = {
     atm_id:        row.ID             || '',
     adres:         row.ADRES           || '',
     sd:            row.SD              || '',
@@ -584,6 +604,8 @@ function rowToSB(row, sheet) {
     meta_modified: (row.__meta||{}).modified   || '',
     meta_launched: (row.__meta||{}).launchedAt || '',
   };
+  INSTALL_FIELDS.forEach(f => { out[f.k] = row[f.k] || ''; });
+  return out;
 }
 // UPSERT підхід — дублі неможливі на рівні БД
 async function saveAllToServer() {
@@ -833,6 +855,7 @@ function deserializeRow(r) {
   row['Date Start']= r.date_start  || '';
   row.Note         = r.note        || '';
   row['Статус']    = '';
+  INSTALL_FIELDS.forEach(f => { row[f.k] = r[f.k] || ''; });
   row.__meta = {
     created:    r.meta_created  || todayISO(),
     modified:   r.meta_modified || todayISO(),
@@ -1991,7 +2014,8 @@ function renderCardBody() {
   const title = cardMode==='add' ? 'Новий запис' : ('Картка: ' + (cardRow.ID || '(без ID)'));
   let html = `<div class="card-head"><h3>${title}</h3></div>`;
   if (cardMode !== 'add')
-    html += `<div class="card-mail"><button class="btn" onclick="mailSB()" title="Сформувати лист у поштовій програмі">✉️ Лист на СБ</button></div>`;
+    html += `<div class="card-mail"><button class="btn" onclick="mailSB()" title="Сформувати лист у поштовій програмі">✉️ Лист на СБ</button>` +
+            `<button class="btn" onclick="openInstall()" title="Заявка на інсталяцію ТБС із вкладенням">📄 Заявка на інсталяцію ТБС</button></div>`;
   CARD_GROUPS.forEach(g => {
     html += `<div class="card-group"><div class="card-group-title">${g.title}</div><div class="card-fields">`;
     g.keys.forEach(k => { const col = byKey[k]; if (col) html += cardFieldHtml(col, cardRow); });
@@ -2004,6 +2028,185 @@ function renderCardBody() {
   document.getElementById('modalContent').innerHTML = html;
   document.getElementById('modal').classList.add('show');
 }
+// ---- Заявка на інсталяцію ТБС ----
+const INSTALL_FIELDS = [
+  { k:'serial_no',    l:'Серійний номер банкомата (S/N)' },
+  { k:'term_type',    l:'Тип термінала' },
+  { k:'ip_term',      l:'IP-адреса термінала' },
+  { k:'keys_place',   l:'Ключі криптування — де знаходяться' },
+  { k:'keys_mol',     l:'МОЛ — ПІБ' },
+  { k:'keys_phone',   l:'МОЛ — телефон' },
+  { k:'keys_addr',    l:'Адреса отримання фізичних ключів' },
+  { k:'cass_addr',    l:'Адреса налаштування касет' },
+  { k:'contact_fio',  l:'Контактна особа — ПІБ' },
+  { k:'contact_phone',l:'Контактна особа — телефон' },
+  { k:'lan_gw',       l:'Чекпоінт LAN — шлюз' },
+  { k:'lan_mask',     l:'Чекпоінт LAN — маска' },
+  { k:'wan_ip',       l:'Чекпоінт WAN — IP' },
+  { k:'wan_mask',     l:'Чекпоінт WAN — маска' },
+  { k:'wan_gw',       l:'Чекпоінт WAN — шлюз' }
+];
+const INST_TO = 'oschad_all@24renome.com; 911@24renome.com; vprk@renome.ua; flm_oschad3@24renome.com';
+const INST_CC = '';   // TODO: адреси Павелка та Мухіна
+
+function ruNameByAtmId(id) {
+  const code = String(id || '').substring(1, 3);
+  const r = (window.__ruCache || {})[code];
+  if (!r) return 'РУ ' + code;
+  return String(r.name || '').replace(/\bОУ\b/, 'РУ');
+}
+async function loadRuCache() {
+  if (window.__ruCache) return;
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/pos_ru_test?select=code,name`, {
+      headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+    const m = {};
+    (await r.json()).forEach(x => { m[String(x.code).trim()] = x; });
+    window.__ruCache = m;
+  } catch (e) { window.__ruCache = {}; }
+}
+
+async function openInstall() {
+  if (!cardRow) return;
+  readCardInto(cardRow);
+  await loadRuCache();
+  const esc = v => String(v == null ? '' : v).replace(/"/g, '&quot;');
+  const senderMail  = localStorage.getItem('inst_sender_mail')  || '';
+  const senderPhone = localStorage.getItem('inst_sender_phone') || '';
+  document.getElementById('instTitle').textContent = 'Заявка на інсталяцію — ' + (cardRow.ID || '');
+  document.getElementById('instSub').textContent =
+    ruNameByAtmId(cardRow.ID) + ' · ' + (cardRow.ADRES || 'адреса не вказана');
+  document.getElementById('instFields').innerHTML =
+    '<div class="inst-grid">' +
+    INSTALL_FIELDS.map(f => `<div class="inst-cell"><label>${f.l}</label>` +
+      `<input type="text" data-ik="${f.k}" value="${esc(cardRow[f.k])}" autocomplete="off"></div>`).join('') +
+    `<div class="inst-cell"><label>Ваш e-mail (для заявки)</label>` +
+    `<input type="text" id="instMail" value="${esc(senderMail)}" autocomplete="off"></div>` +
+    `<div class="inst-cell"><label>Ваш телефон (для заявки)</label>` +
+    `<input type="text" id="instPhone" value="${esc(senderPhone)}" autocomplete="off"></div>` +
+    '</div>';
+  document.getElementById('instModalBg').classList.add('show');
+}
+function closeInstall() { document.getElementById('instModalBg').classList.remove('show'); }
+
+function collectInstall() {
+  const v = {};
+  document.querySelectorAll('#instFields input[data-ik]').forEach(i => { v[i.dataset.ik] = i.value.trim(); });
+  v.__mail  = (document.getElementById('instMail')  || {}).value?.trim() || '';
+  v.__phone = (document.getElementById('instPhone') || {}).value?.trim() || '';
+  return v;
+}
+async function saveInstall(silent) {
+  if (!cardRow) return false;
+  const v = collectInstall();
+  INSTALL_FIELDS.forEach(f => { cardRow[f.k] = v[f.k] || ''; });
+  localStorage.setItem('inst_sender_mail',  v.__mail);
+  localStorage.setItem('inst_sender_phone', v.__phone);
+  if (!cardRow.__meta) cardRow.__meta = {};
+  cardRow.__meta.modified = todayISO();
+  try {
+    await persistRow(cardRow, currentSheet === 'zap' ? 'ZAP' : 'ATM');
+    logAction('install_save', cardRow.ID || '—', 'Збережено дані для заявки на інсталяцію', currentUser);
+    if (!silent) { alert('Дані збережено в картці банкомата.'); closeInstall(); render(); }
+    return true;
+  } catch (e) { alert('Не вдалося зберегти:\n\n' + e.message); return false; }
+}
+
+function instEmailBody(v) {
+  const nl = '\r\n';
+  return [
+    'Доброго дня',
+    'Прохання терміново взяти в роботу та провести інсталяцію АТМ. Перед виїздом зв\u2019язатися з контактною особою.',
+    `Та прохання налаштувати та встановити чекпоінти (1535) та ввести ключі криптування (ключі знаходяться ${v.keys_place || '—'}, ${v.keys_mol || '—'} ${v.keys_phone || ''}).`,
+    'По завершенню робіт надати чеклист.',
+    '',
+    `Прохання сформувати наряд інженеру щоб отримати ключі від сервісної частини для АТМ ${cardRow.ID || ''} за адресою ${v.keys_addr || '—'}.`,
+    `Також прохання виконати налаштування касет ДВОХ комплектів, касети знаходяться на секторі перерахунку за адресою: ${v.cass_addr || '—'}`,
+    '',
+    `Контакт  ${v.contact_fio || '—'} ${v.contact_phone || ''}.`,
+    '',
+    'Налаштування для чекпоінта:',
+    'LAN', v.lan_gw || '—', v.lan_mask || '—',
+    'WAN', v.wan_ip || '—', v.wan_mask || '—', v.wan_gw || '—',
+    '', 'Дякую.'
+  ].join(nl);
+}
+
+async function buildInstallDocx(v) {
+  const resp = await fetch('install_template.docx', { cache: 'no-store' });
+  if (!resp.ok) throw new Error('Не вдалося завантажити шаблон заявки.');
+  const zip = await JSZip.loadAsync(await resp.arrayBuffer());
+  const xmlEsc = t => String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const map = {
+    RU: ruNameByAtmId(cardRow.ID), TERM_TYPE: v.term_type, SN: v.serial_no,
+    ATM_ID: cardRow.ID, ADDR: cardRow.ADRES,
+    EMAIL: v.__mail, SENDER: (USERS[currentUser] || {}).full || currentUserFio,
+    SENDER_PHONE: v.__phone,
+    CONTACT: v.contact_fio, CONTACT_PHONE: v.contact_phone,
+    IP_TERM: v.ip_term, IP_ROUTER: v.lan_gw, IP_MASK: v.lan_mask
+  };
+  let xml = await zip.file('word/document.xml').async('string');
+  Object.entries(map).forEach(([k, val]) => {
+    xml = xml.split('{{' + k + '}}').join(xmlEsc(val));
+  });
+  zip.file('word/document.xml', xml);
+  return await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+}
+
+async function makeInstallLetter() {
+  if (!cardRow) return;
+  const v = collectInstall();
+  if (!v.serial_no) { alert('Вкажіть серійний номер банкомата — він потрібен у темі листа.'); return; }
+  if (!(await saveInstall(true))) return;
+  let docx;
+  try { docx = await buildInstallDocx(v); }
+  catch (e) { alert('Помилка формування заявки:\n\n' + e.message); return; }
+
+  const b64 = (() => {
+    let bin = '';
+    for (let i = 0; i < docx.length; i++) bin += String.fromCharCode(docx[i]);
+    return btoa(bin);
+  })();
+  const utf8b64 = t => {
+    const b = new TextEncoder().encode(t); let s = '';
+    for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    return btoa(s);
+  };
+  const wrap = t => t.replace(/(.{76})/g, '$1\r\n');
+  const subj = `Заявка на інсталяцію ${ruNameByAtmId(cardRow.ID)} ${v.serial_no}`;
+  const fname = `Інстал_${cardRow.ID || 'ATM'}.docx`;
+  const B = '=_tbs_' + Date.now();
+  const eml = [
+    'To: ' + INST_TO,
+    INST_CC ? 'Cc: ' + INST_CC : null,
+    'Subject: =?UTF-8?B?' + utf8b64(subj) + '?=',
+    'X-Unsent: 1',
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${B}"`,
+    '',
+    `--${B}`,
+    'Content-Type: text/plain; charset=utf-8',
+    'Content-Transfer-Encoding: base64',
+    '', wrap(utf8b64(instEmailBody(v))),
+    `--${B}`,
+    'Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    `Content-Disposition: attachment; filename="=?UTF-8?B?${utf8b64(fname)}?="`,
+    'Content-Transfer-Encoding: base64',
+    '', wrap(b64),
+    `--${B}--`, ''
+  ].filter(x => x !== null).join('\r\n');
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([eml], { type: 'message/rfc822' }));
+  a.download = subj + '.eml';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  logAction('install_mail', cardRow.ID || '—', 'Сформовано заявку на інсталяцію', currentUser);
+  closeInstall();
+  alert('Лист сформовано разом із заявкою.\n\nВідкрийте завантажений файл подвійним кліком — Outlook покаже готовий лист із вкладенням.');
+}
+
 // ---- Лист на СБ (відкриває Outlook із заповненими полями) ----
 const SB_EMAIL = '';  // TODO: вписати адресу СБ; поки порожньо — Outlook відкриється з пустим полем "Кому"
 function mailSB() {
@@ -2067,8 +2270,12 @@ function saveCard() {
 }
 
 // ===== Версіонність =====
-const APP_VERSION = '1.4';
+const APP_VERSION = '1.5';
 const CHANGELOG = [
+  { v:'1.5', date:'2026-08', items:[
+    'Кнопка «Заявка на інсталяцію ТБС» у картці банкомата — форма з даними для інсталяції (серійний номер, ключі криптування, адреси, контактна особа, налаштування чекпоінта), дані зберігаються в картці',
+    'Лист формується разом із вкладеною заявкою на інсталяцію та відкривається в Outlook',
+  ]},
   { v:'1.4', date:'2026-07', items:[
     'Кнопка «✉️ Лист на СБ» у картці банкомату — формує лист про встановлення сигналізації з ID, адресою та організацією і відкриває поштову програму (Outlook)',
   ]},
