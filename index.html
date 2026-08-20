@@ -340,7 +340,8 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 <div class="modal-overlay" id="instModalBg" style="z-index:120">
   <div class="modal" style="max-width:780px">
     <h3 id="instTitle">Заявка на інсталяцію</h3>
-    <div class="sub" id="instSub" style="font-size:12px;color:#5a7a62;margin-bottom:12px"></div>
+    <div class="sub" id="instSub" style="font-size:12px;color:#5a7a62;margin-bottom:8px"></div>
+    <div id="instWarn" style="display:none;background:#fdf6f6;border:1px solid #e8c8c8;color:#7a2020;border-radius:8px;padding:9px 11px;font-size:12px;margin-bottom:12px;line-height:1.5"></div>
     <div class="inst-scroll" id="instFields"></div>
     <div class="card-actions">
       <button class="btn" onclick="closeInstall()">Закрити</button>
@@ -1962,12 +1963,33 @@ function exportMonthReport(selectedMonth) {
   logAction('export', '—', `Звіт за ${monthName}: ${rows.length} пристроїв`);
 }
 // ===== Картка редагування рядка =====
+const INSTALL_FIELDS = [
+  { k:'serial_no',    l:'Серійний номер банкомата (S/N)' },
+  { k:'term_type',    l:'Тип термінала' },
+  { k:'ip_term',      l:'IP-адреса термінала' },
+  { k:'keys_place',   l:'Ключі криптування — де знаходяться' },
+  { k:'keys_mol',     l:'МОЛ — ПІБ' },
+  { k:'keys_phone',   l:'МОЛ — телефон' },
+  { k:'keys_addr',    l:'Адреса отримання фізичних ключів' },
+  { k:'cass_addr',    l:'Адреса налаштування касет' },
+  { k:'contact_fio',  l:'Контактна особа — ПІБ' },
+  { k:'contact_phone',l:'Контактна особа — телефон' },
+  { k:'lan_gw',       l:'Чекпоінт LAN — шлюз' },
+  { k:'lan_mask',     l:'Чекпоінт LAN — маска' },
+  { k:'wan_ip',       l:'Чекпоінт WAN — IP' },
+  { k:'wan_mask',     l:'Чекпоінт WAN — маска' },
+  { k:'wan_gw',       l:'Чекпоінт WAN — шлюз' }
+];
+
 const CARD_GROUPS = [
   { title:'Опис', keys:['_type','ID','ADRES','SD','Org','Old ATM','FIO'] },
   { title:'Етапи', keys:['dogovir','DIS','BEC','Limi','ТМК','Сигналізація','СБОН'] },
   { title:'Технічні', keys:['Канал','port'] },
   { title:'Дати', keys:['date pog','Date SLO','Date Start'] },
   { title:'Примітка', keys:['Note'] },
+  { title:'Інсталяція', keys:['serial_no','term_type','ip_term','keys_place','keys_mol','keys_phone',
+                              'keys_addr','cass_addr','contact_fio','contact_phone',
+                              'lan_gw','lan_mask','wan_ip','wan_mask','wan_gw'] },
 ];
 let cardRow = null, cardMode = 'edit', cardIdx = -1;
 function cardFieldHtml(col, row) {
@@ -2011,11 +2033,12 @@ function onCardTypeChange(sel) {
 }
 function renderCardBody() {
   const byKey = {}; COLUMNS.forEach(c => byKey[c.key] = c);
+  INSTALL_FIELDS.forEach(f => { byKey[f.k] = { key: f.k, label: f.l, type: 'text' }; });
   const title = cardMode==='add' ? 'Новий запис' : ('Картка: ' + (cardRow.ID || '(без ID)'));
   let html = `<div class="card-head"><h3>${title}</h3></div>`;
   if (cardMode !== 'add')
     html += `<div class="card-mail"><button class="btn" onclick="mailSB()" title="Сформувати лист у поштовій програмі">✉️ Лист на СБ</button>` +
-            `<button class="btn" onclick="openInstall()" title="Заявка на інсталяцію ТБС із вкладенням">📄 Заявка на інсталяцію ТБС</button></div>`;
+            `<button class="btn" onclick="installClick()" title="Заявка на інсталяцію ТБС із вкладенням">📄 Заявка на інсталяцію ТБС</button></div>`;
   CARD_GROUPS.forEach(g => {
     html += `<div class="card-group"><div class="card-group-title">${g.title}</div><div class="card-fields">`;
     g.keys.forEach(k => { const col = byKey[k]; if (col) html += cardFieldHtml(col, cardRow); });
@@ -2029,23 +2052,6 @@ function renderCardBody() {
   document.getElementById('modal').classList.add('show');
 }
 // ---- Заявка на інсталяцію ТБС ----
-const INSTALL_FIELDS = [
-  { k:'serial_no',    l:'Серійний номер банкомата (S/N)' },
-  { k:'term_type',    l:'Тип термінала' },
-  { k:'ip_term',      l:'IP-адреса термінала' },
-  { k:'keys_place',   l:'Ключі криптування — де знаходяться' },
-  { k:'keys_mol',     l:'МОЛ — ПІБ' },
-  { k:'keys_phone',   l:'МОЛ — телефон' },
-  { k:'keys_addr',    l:'Адреса отримання фізичних ключів' },
-  { k:'cass_addr',    l:'Адреса налаштування касет' },
-  { k:'contact_fio',  l:'Контактна особа — ПІБ' },
-  { k:'contact_phone',l:'Контактна особа — телефон' },
-  { k:'lan_gw',       l:'Чекпоінт LAN — шлюз' },
-  { k:'lan_mask',     l:'Чекпоінт LAN — маска' },
-  { k:'wan_ip',       l:'Чекпоінт WAN — IP' },
-  { k:'wan_mask',     l:'Чекпоінт WAN — маска' },
-  { k:'wan_gw',       l:'Чекпоінт WAN — шлюз' }
-];
 const INST_TO = 'oschad_all@24renome.com; 911@24renome.com; vprk@renome.ua; flm_oschad3@24renome.com';
 const INST_CC = '';   // TODO: адреси Павелка та Мухіна
 
@@ -2068,7 +2074,19 @@ async function loadRuCache() {
   } catch (e) { window.__ruCache = {}; }
 }
 
-async function openInstall() {
+function missingInstall(row) {
+  return INSTALL_FIELDS.filter(f => !String(row[f.k] || '').trim()).map(f => f.l);
+}
+async function installClick() {
+  if (!cardRow) return;
+  readCardInto(cardRow);
+  const miss = missingInstall(cardRow);
+  const haveSender = localStorage.getItem('inst_sender_mail') && localStorage.getItem('inst_sender_phone');
+  if (miss.length || !haveSender) { await openInstall(miss); return; }
+  await makeInstallLetter();
+}
+
+async function openInstall(miss) {
   if (!cardRow) return;
   readCardInto(cardRow);
   await loadRuCache();
@@ -2076,8 +2094,13 @@ async function openInstall() {
   const senderMail  = localStorage.getItem('inst_sender_mail')  || '';
   const senderPhone = localStorage.getItem('inst_sender_phone') || '';
   document.getElementById('instTitle').textContent = 'Заявка на інсталяцію — ' + (cardRow.ID || '');
-  document.getElementById('instSub').textContent =
-    ruNameByAtmId(cardRow.ID) + ' · ' + (cardRow.ADRES || 'адреса не вказана');
+  const sub = document.getElementById('instSub');
+  sub.textContent = ruNameByAtmId(cardRow.ID) + ' · ' + (cardRow.ADRES || 'адреса не вказана');
+  const warn = document.getElementById('instWarn');
+  if (miss && miss.length) {
+    warn.style.display = '';
+    warn.textContent = 'Перевірте дані. Не заповнено: ' + miss.join(', ') + '.';
+  } else warn.style.display = 'none';
   document.getElementById('instFields').innerHTML =
     '<div class="inst-grid">' +
     INSTALL_FIELDS.map(f => `<div class="inst-cell"><label>${f.l}</label>` +
