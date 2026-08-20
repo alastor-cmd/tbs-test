@@ -1969,7 +1969,6 @@ const INSTALL_FIELDS = [
   { k:'ip_term',      l:'IP-адреса термінала' },
   { k:'keys_place',   l:'Ключі криптування — де знаходяться' },
   { k:'keys_mol',     l:'МОЛ — ПІБ' },
-  { k:'keys_phone',   l:'МОЛ — телефон' },
   { k:'keys_addr',    l:'Адреса отримання фізичних ключів' },
   { k:'cass_addr',    l:'Адреса налаштування касет' },
   { k:'contact_fio',  l:'Контактна особа — ПІБ' },
@@ -1987,7 +1986,7 @@ const CARD_GROUPS = [
   { title:'Технічні', keys:['Канал','port'] },
   { title:'Дати', keys:['date pog','Date SLO','Date Start'] },
   { title:'Примітка', keys:['Note'] },
-  { title:'Інсталяція', keys:['serial_no','term_type','ip_term','keys_place','keys_mol','keys_phone',
+  { title:'Інсталяція', keys:['serial_no','term_type','ip_term','keys_place','keys_mol',
                               'keys_addr','cass_addr','contact_fio','contact_phone',
                               'lan_gw','lan_mask','wan_ip','wan_mask','wan_gw'] },
 ];
@@ -2142,7 +2141,7 @@ function instEmailBody(v) {
   return [
     'Доброго дня',
     'Прохання терміново взяти в роботу та провести інсталяцію АТМ. Перед виїздом зв\u2019язатися з контактною особою.',
-    `Та прохання налаштувати та встановити чекпоінти (1535) та ввести ключі криптування (ключі знаходяться ${v.keys_place || '—'}, ${v.keys_mol || '—'} ${v.keys_phone || ''}).`,
+    `Та прохання налаштувати та встановити чекпоінти (1535) та ввести ключі криптування (ключі знаходяться ${v.keys_place || '—'}, ${v.keys_mol || '—'}).`,
     'По завершенню робіт надати чеклист.',
     '',
     `Прохання сформувати наряд інженеру щоб отримати ключі від сервісної частини для АТМ ${cardRow.ID || ''} за адресою ${v.keys_addr || '—'}.`,
