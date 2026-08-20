@@ -2091,7 +2091,8 @@ async function installClick() {
   if (!cardRow) return;
   readCardInto(cardRow);
   const miss = missingInstall(cardRow);
-  if (miss.length) { await openInstall(miss); return; }
+  const haveSender = localStorage.getItem('inst_sender_mail') && localStorage.getItem('inst_sender_phone');
+  if (miss.length || !haveSender) { await openInstall(miss); return; }
   await makeInstallLetter();
 }
 
@@ -2100,6 +2101,8 @@ async function openInstall(miss) {
   readCardInto(cardRow);
   await loadRuCache();
   const esc = v => String(v == null ? '' : v).replace(/"/g, '&quot;');
+  const senderMail  = localStorage.getItem('inst_sender_mail')  || '';
+  const senderPhone = localStorage.getItem('inst_sender_phone') || '';
   document.getElementById('instTitle').textContent = 'Заявка на інсталяцію — ' + (cardRow.ID || '');
   const sub = document.getElementById('instSub');
   sub.textContent = ruNameByAtmId(cardRow.ID) + ' · ' + (cardRow.ADRES || 'адреса не вказана');
@@ -2124,6 +2127,10 @@ async function openInstall(miss) {
       return `<div class="inst-cell"><label>${f.l}</label>` +
         `<input type="text" data-ik="${f.k}" value="${esc(v)}" autocomplete="off"></div>`;
     }).join('') +
+    `<div class="inst-cell"><label>Ваш e-mail (для заявки)</label>` +
+    `<input type="text" id="instMail" value="${esc(senderMail)}" autocomplete="off"></div>` +
+    `<div class="inst-cell"><label>Ваш телефон (для заявки)</label>` +
+    `<input type="text" id="instPhone" value="${esc(senderPhone)}" autocomplete="off"></div>` +
     '</div>';
   document.getElementById('instModalBg').classList.add('show');
 }
@@ -2132,12 +2139,16 @@ function closeInstall() { document.getElementById('instModalBg').classList.remov
 function collectInstall() {
   const v = {};
   document.querySelectorAll('#instFields [data-ik]').forEach(i => { v[i.dataset.ik] = i.value.trim(); });
+  v.__mail  = (document.getElementById('instMail')  || {}).value?.trim() || '';
+  v.__phone = (document.getElementById('instPhone') || {}).value?.trim() || '';
   return v;
 }
 async function saveInstall(silent) {
   if (!cardRow) return false;
   const v = collectInstall();
   INSTALL_FIELDS.forEach(f => { cardRow[f.k] = v[f.k] || ''; });
+  localStorage.setItem('inst_sender_mail',  v.__mail);
+  localStorage.setItem('inst_sender_phone', v.__phone);
   if (!cardRow.__meta) cardRow.__meta = {};
   cardRow.__meta.modified = todayISO();
   try {
@@ -2178,8 +2189,8 @@ async function buildInstallDocx(v) {
   const map = {
     RU: ruNameByAtmId(cardRow.ID), TERM_TYPE: v.term_type, SN: v.serial_no,
     ATM_ID: cardRow.ID, ADDR: cardRow.ADRES,
-    EMAIL: '', SENDER: (USERS[currentUser] || {}).full || currentUserFio,
-    SENDER_PHONE: '',
+    EMAIL: v.__mail, SENDER: (USERS[currentUser] || {}).full || currentUserFio,
+    SENDER_PHONE: v.__phone,
     CONTACT: v.contact_fio, CONTACT_PHONE: v.contact_phone,
     IP_TERM: v.ip_term, IP_ROUTER: v.lan_gw, IP_MASK: v.lan_mask
   };
