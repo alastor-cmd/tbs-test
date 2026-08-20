@@ -210,6 +210,9 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
 .card-fields input[type=text],.card-fields input[type=date],.card-fields select,.card-fields textarea{padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-size:13px;color:#222;font-family:inherit;}
 .card-fields input[type=checkbox]{width:18px;height:18px;}
 .card-mail{margin:0 0 14px;display:flex;gap:8px;flex-wrap:wrap;}
+.inst-group{font-size:11px;font-weight:800;color:#1a3a28;text-transform:uppercase;letter-spacing:.06em;
+  margin:16px 0 2px;padding-bottom:4px;border-bottom:1px solid #c8dac0;}
+.inst-group:first-child{margin-top:4px;}
 .inst-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:4px;}
 .inst-cell label{display:block;font-size:10px;font-weight:700;color:#5a7a62;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;}
 .inst-cell input{width:100%;padding:7px 9px;border:1px solid #c8dac0;border-radius:6px;font-size:12px;font-family:inherit;outline:none;}
@@ -1970,25 +1973,27 @@ const IPT_MODELS = ['RS1000SNAD','RS1000SNA','RS1000SND','RS1000SN','RS1000SPAD'
 const modelsFor = t => (t === 'IPT' ? IPT_MODELS : ATM_MODELS);
 
 const INSTALL_FIELDS = [
-  { k:'serial_no',    l:'Серійний номер банкомата (S/N)' },
-  { k:'term_type',    l:'Тип термінала', sel:true },
-  { k:'ip_term',      l:'IP-адреса термінала' },
-  { k:'keys_place',   l:'Ключі криптування — де знаходяться' },
-  { k:'keys_mol',     l:'МОЛ — ПІБ' },
-  { k:'keys_phone',   l:'МОЛ — телефон' },
-  { k:'keys_addr',    l:'Адреса отримання фізичних ключів' },
-  { k:'cass_addr',    l:'Адреса налаштування касет' },
-  { k:'cass_fio',     l:'Касети — ПІБ контактної особи' },
-  { k:'cass_phone',   l:'Касети — телефон контактної особи' },
-  { k:'contact_fio',  l:'Контактна особа — ПІБ' },
-  { k:'contact_phone',l:'Контактна особа — телефон' },
-  { k:'lan_gw',       l:'Чекпоінт LAN — шлюз' },
-  { k:'lan_mask',     l:'Чекпоінт LAN — маска' },
-  { k:'wan_ip',       l:'Чекпоінт WAN — IP' },
-  { k:'wan_mask',     l:'Чекпоінт WAN — маска' },
-  { k:'wan_gw',       l:'Чекпоінт WAN — шлюз' },
-  { k:'modem_note',   l:'Замітка по модему', note:true, optional:true }
+  { g:'Термінал',   k:'serial_no',    l:'Серійний номер банкомата (S/N)' },
+  { g:'Термінал',   k:'term_type',    l:'Тип термінала', sel:true },
+  { g:'Термінал',   k:'ip_term',      l:'IP-адреса термінала' },
+  { g:'Криптоключі',k:'keys_place',   l:'Де знаходяться ключі' },
+  { g:'Криптоключі',k:'keys_mol',     l:'МОЛ — ПІБ' },
+  { g:'Криптоключі',k:'keys_phone',   l:'МОЛ — телефон' },
+  { g:'Криптоключі',k:'keys_addr',    l:'Адреса отримання фізичних ключів' },
+  { g:'Касети',     k:'cass_addr',    l:'Адреса налаштування касет' },
+  { g:'Касети',     k:'cass_fio',     l:'ПІБ контактної особи' },
+  { g:'Касети',     k:'cass_phone',   l:'Телефон контактної особи' },
+  { g:'Контактна особа', k:'contact_fio',  l:'ПІБ' },
+  { g:'Контактна особа', k:'contact_phone',l:'Телефон' },
+  { g:'Мережеве (чекпоінт)', k:'lan_gw',   l:'LAN — шлюз' },
+  { g:'Мережеве (чекпоінт)', k:'lan_mask', l:'LAN — маска' },
+  { g:'Мережеве (чекпоінт)', k:'wan_ip',   l:'WAN — IP' },
+  { g:'Мережеве (чекпоінт)', k:'wan_mask', l:'WAN — маска' },
+  { g:'Мережеве (чекпоінт)', k:'wan_gw',   l:'WAN — шлюз' },
+  { g:'Модем',      k:'modem_note',   l:'Замітка по модему', note:true, optional:true }
 ];
+const INSTALL_GROUPS = [...new Set(INSTALL_FIELDS.map(f => f.g))];
+
 
 const CARD_GROUPS = [
   { title:'Опис', keys:['_type','ID','ADRES','SD','Org','Old ATM','FIO'] },
@@ -1996,9 +2001,7 @@ const CARD_GROUPS = [
   { title:'Технічні', keys:['Канал','port'] },
   { title:'Дати', keys:['date pog','Date SLO','Date Start'] },
   { title:'Примітка', keys:['Note'] },
-  { title:'Інсталяція', keys:['serial_no','term_type','ip_term','keys_place','keys_mol','keys_phone',
-                              'keys_addr','cass_addr','cass_fio','cass_phone','contact_fio','contact_phone',
-                              'lan_gw','lan_mask','wan_ip','wan_mask','wan_gw','modem_note'] },
+  ...INSTALL_GROUPS.map(g => ({ title: g, keys: INSTALL_FIELDS.filter(f => f.g === g).map(f => f.k) })),
 ];
 let cardRow = null, cardMode = 'edit', cardIdx = -1;
 function cardFieldHtml(col, row) {
@@ -2121,25 +2124,29 @@ async function openInstall(miss) {
     warn.style.display = '';
     warn.textContent = 'Перевірте дані. Не заповнено: ' + miss.join(', ') + '.';
   } else warn.style.display = 'none';
+  const cellHtml = f => {
+    const v = cardRow[f.k] || '';
+    if (f.sel) {
+      const opts = [''].concat(modelsFor(cardRow._type));
+      if (v && !opts.includes(v)) opts.splice(1, 0, v);
+      return `<div class="inst-cell"><label>${f.l}</label><select data-ik="${f.k}">` +
+        opts.map(o => `<option value="${esc(o)}"${o === v ? ' selected' : ''}>${o || '— не обрано —'}</option>`).join('') +
+        '</select></div>';
+    }
+    if (f.note) return `<div class="inst-cell" style="grid-column:1/-1"><label>${f.l}</label>` +
+      `<textarea data-ik="${f.k}" rows="3" style="width:100%;padding:7px 9px;border:1px solid #c8dac0;border-radius:6px;font-size:12px;font-family:inherit">${esc(v)}</textarea></div>`;
+    return `<div class="inst-cell"><label>${f.l}</label>` +
+      `<input type="text" data-ik="${f.k}" value="${esc(v)}" autocomplete="off"></div>`;
+  };
   document.getElementById('instFields').innerHTML =
-    '<div class="inst-grid">' +
-    INSTALL_FIELDS.map(f => {
-      const v = cardRow[f.k] || '';
-      if (f.sel) {
-        const opts = [''].concat(modelsFor(cardRow._type));
-        if (v && !opts.includes(v)) opts.splice(1, 0, v);
-        return `<div class="inst-cell"><label>${f.l}</label><select data-ik="${f.k}">` +
-          opts.map(o => `<option value="${esc(o)}"${o === v ? ' selected' : ''}>${o || '— не обрано —'}</option>`).join('') +
-          '</select></div>';
-      }
-      if (f.note) return `<div class="inst-cell" style="grid-column:1/-1"><label>${f.l}</label>` +
-        `<textarea data-ik="${f.k}" rows="2" style="width:100%;padding:7px 9px;border:1px solid #c8dac0;border-radius:6px;font-size:12px;font-family:inherit">${esc(v)}</textarea></div>`;
-      return `<div class="inst-cell"><label>${f.l}</label>` +
-        `<input type="text" data-ik="${f.k}" value="${esc(v)}" autocomplete="off"></div>`;
-    }).join('') +
-    `<div class="inst-cell"><label>Ваш e-mail (для заявки)</label>` +
+    INSTALL_GROUPS.map(g =>
+      `<div class="inst-group">${g}</div><div class="inst-grid">` +
+      INSTALL_FIELDS.filter(f => f.g === g).map(cellHtml).join('') + '</div>'
+    ).join('') +
+    '<div class="inst-group">Дані для заявки</div><div class="inst-grid">' +
+    `<div class="inst-cell"><label>Ваш e-mail</label>` +
     `<input type="text" id="instMail" value="${esc(senderMail)}" autocomplete="off"></div>` +
-    `<div class="inst-cell"><label>Ваш телефон (для заявки)</label>` +
+    `<div class="inst-cell"><label>Ваш телефон</label>` +
     `<input type="text" id="instPhone" value="${esc(senderPhone)}" autocomplete="off"></div>` +
     '</div>';
   document.getElementById('instModalBg').classList.add('show');
