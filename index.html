@@ -2062,6 +2062,13 @@ function renderCardBody() {
   document.getElementById('modal').classList.add('show');
 }
 // ---- Заявка на інсталяцію ТБС ----
+const USER_MAIL = {
+  'PavelkoOV':       'PavelkoOV@oschadbank.ua',
+  'PilkevichAA':     'PilkevichAA@oschadbank.ua',
+  'strazhevskijoo':  'strazhevskijoo@oschadbank.ua',
+  'dembnovetskyiiv': 'dembnovetskyiiv@oschadbank.ua',
+  'DanevichNS':      'DanevichNS@oschadbank.ua'
+};
 const INST_TO = 'oschad_all@24renome.com; 911@24renome.com; vprk@renome.ua; flm_oschad3@24renome.com';
 const INST_CC = '';   // TODO: адреси Павелка та Мухіна
 
@@ -2091,7 +2098,7 @@ async function installClick() {
   if (!cardRow) return;
   readCardInto(cardRow);
   const miss = missingInstall(cardRow);
-  const haveSender = localStorage.getItem('inst_sender_mail') && localStorage.getItem('inst_sender_phone');
+  const haveSender = localStorage.getItem('inst_sender_phone');
   if (miss.length || !haveSender) { await openInstall(miss); return; }
   await makeInstallLetter();
 }
@@ -2101,7 +2108,7 @@ async function openInstall(miss) {
   readCardInto(cardRow);
   await loadRuCache();
   const esc = v => String(v == null ? '' : v).replace(/"/g, '&quot;');
-  const senderMail  = localStorage.getItem('inst_sender_mail')  || '';
+  const senderMail  = localStorage.getItem('inst_sender_mail')  || USER_MAIL[currentUser] || '';
   const senderPhone = localStorage.getItem('inst_sender_phone') || '';
   document.getElementById('instTitle').textContent = 'Заявка на інсталяцію — ' + (cardRow.ID || '');
   const sub = document.getElementById('instSub');
