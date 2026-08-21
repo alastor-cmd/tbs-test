@@ -148,6 +148,7 @@ tr:hover td{background:#f7fbf7;}
   <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 12:24</span>
   <span class="db-status" id="headerUser"></span>
   <span class="db-status" id="dbStatus">завантаження…</span>
+  <button class="back" onclick="openInstruction()" title="Інструкція користувача">📘 Інструкція</button>
   <a class="back" href="index.html">← До таблиці ТБС</a>
   <button class="back" style="margin-left:8px" onclick="doLogout()">Вийти</button>
 </div>
@@ -486,6 +487,13 @@ let serials  = new Map();       // terminal_id -> {serial, exported_at}
 let rus      = new Map();       // код РУ -> дані РУ
 let curId = null, curRawId = null, curBranch = null;
 
+function openInstruction() {
+  const a = document.createElement('a');
+  a.href = 'instruction.docx';
+  a.download = 'Інструкція користувача.docx';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => a.remove(), 1000);
+}
 function setStatus(t) { document.getElementById('dbStatus').textContent = t; }
 function setImport(t) { document.getElementById('importStatus').textContent = t; }
 function norm(v) { return v === null || v === undefined ? '' : String(v).trim(); }
