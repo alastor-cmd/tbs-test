@@ -288,6 +288,7 @@ tr.row-selected td.sticky-cb,tr.row-selected td.sticky-type,tr.row-selected td.s
     <button class="btn btn-log" id="logBtn" onclick="showLog()">📋 Журнал дій</button>
     <button class="btn" id="cpBtn" onclick="window.open('checkpoint.html','_blank')" style="display:none;background:#0369a1;color:#fff;border-color:#0369a1">🔒 CheckPoint</button>
     <button class="btn" id="posBtn" onclick="window.open('pos.html','_blank')" style="display:none;background:#1a7a4c;color:#fff;border-color:#1a7a4c">💳 ПОСи</button>
+    <button class="btn" onclick="openInstruction()" title="Інструкція користувача">📘 Інструкція</button>
     <button class="btn" id="profilesBtn" onclick="showProfiles()" style="display:none;background:#6d28d9;color:#fff;border-color:#6d28d9">👥 Профілі</button>
     <span style="margin-left:auto;color:var(--text-muted);font-size:12px;" id="info">Завантаження...</span>
   </div>
@@ -2275,6 +2276,14 @@ async function makeInstallLetter() {
 
 // ---- Лист на СБ (відкриває Outlook із заповненими полями) ----
 const SB_EMAIL = '';  // TODO: вписати адресу СБ; поки порожньо — Outlook відкриється з пустим полем "Кому"
+function openInstruction() {
+  const a = document.createElement('a');
+  a.href = 'instruction.docx';
+  a.download = 'Інструкція користувача.docx';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => a.remove(), 1000);
+}
+
 function mailSB() {
   if (!cardRow) return;
   readCardInto(cardRow);                       // враховуємо щойно введені зміни
