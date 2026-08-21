@@ -2134,7 +2134,7 @@ function ruNameByAtmId(id) {
 async function loadRuCache() {
   if (window.__ruCache) return;
   try {
-    const r = await fetch(`${SB_URL}/rest/v1/pos_ru_test?select=code,name`, {
+    const r = await fetch(`${SB_URL}/rest/v1/pos_ru_test?select=code,name,sb_email`, {
       headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
     const m = {};
     (await r.json()).forEach(x => { m[String(x.code).trim()] = x; });
@@ -2328,9 +2328,11 @@ function openInstruction() {
   setTimeout(() => a.remove(), 1000);
 }
 
-function mailSB() {
+async function mailSB() {
   if (!cardRow) return;
   readCardInto(cardRow);                       // враховуємо щойно введені зміни
+  await loadRuCache();
+  const sbTo = ((window.__ruCache || {})[String(cardRow.ID || '').substring(1, 3)] || {}).sb_email || '';
   const id  = String(cardRow.ID    || '').trim();
   const adr = String(cardRow.ADRES || '').trim();
   const org = String(cardRow.Org   || '').trim();
@@ -2340,7 +2342,7 @@ function mailSB() {
     'Прохання встановити сигналізацію на АТМ',
     id, adr, org
   ].join('\r\n');
-  const link = 'mailto:' + SB_EMAIL +
+  const link = 'mailto:' + sbTo +
                '?subject=' + encodeURIComponent(subject) +
                '&body='    + encodeURIComponent(body);
   window.location.href = link;
