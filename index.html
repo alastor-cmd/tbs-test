@@ -2055,7 +2055,8 @@ function renderCardBody() {
   let html = `<div class="card-head"><h3>${title}</h3></div>`;
   if (cardMode !== 'add')
     html += `<div class="card-mail"><button class="btn" onclick="mailSB()" title="Сформувати лист у поштовій програмі">✉️ Лист на СБ</button>` +
-            `<button class="btn" onclick="installClick()" title="Заявка на інсталяцію ТБС із вкладенням">📄 Заявка на інсталяцію ТБС</button></div>`;
+            `<button class="btn" onclick="installClick()" title="Заявка на інсталяцію ТБС із вкладенням">📄 Заявка на інсталяцію ТБС</button>` +
+            `<button class="btn" onclick="launchLetter()" title="Лист про запуск АТМ на новій локації">🚀 Запуск АТМ</button></div>`;
   CARD_GROUPS.forEach(g => {
     html += `<div class="card-group"><div class="card-group-title">${g.title}</div><div class="card-fields">`;
     g.keys.forEach(k => { const col = byKey[k]; if (col) html += cardFieldHtml(col, cardRow); });
@@ -2068,6 +2069,49 @@ function renderCardBody() {
   document.getElementById('modalContent').innerHTML = html;
   document.getElementById('modal').classList.add('show');
 }
+// ---- Лист «Запуск АТМ» ----
+const LAUNCH_TO = 'oschad_all@24renome.com';
+const LAUNCH_CC = 'PavelkoOV@oschadbank.ua; macro@renome.ua';
+
+async function launchLetter() {
+  if (!cardRow) return;
+  readCardInto(cardRow);
+  await loadRuCache();
+  const need = [['serial_no','Серійний номер'],['wan_ip','WAN — IP'],
+                ['wan_mask','WAN — маска'],['wan_gw','WAN — шлюз']];
+  const miss = need.filter(([k]) => !String(cardRow[k] || '').trim()).map(([, l]) => l);
+  if (miss.length) {
+    alert('Для листа бракує даних: ' + miss.join(', ') + '.\n\nЗаповніть їх у картці.');
+    await openInstall(miss); return;
+  }
+  const nl = '\r\n';
+  const body = [
+    'Доброго дня.',
+    `Прохання сформувати заявку на залучення інженера реноме для налаштування ТБС ${cardRow.ID || ''} на новій локації за адресою ${cardRow.ADRES || '—'}`,
+    ...(String(cardRow.modem_note || '').trim()
+        ? ['Дані по каналу зв\u2019язку:', String(cardRow.modem_note).trim()] : []),
+    'На чекпоінті ATM необхідно змінити налаштування WAN на наступні:',
+    cardRow.wan_ip, cardRow.wan_mask, cardRow.wan_gw
+  ].join(nl);
+  const subj = `${ruNameByAtmId(cardRow.ID)} запуск ATM ${cardRow.ID || ''} ${cardRow.serial_no || ''}`.trim();
+  const link = 'mailto:' + LAUNCH_TO + '?cc=' + encodeURIComponent(LAUNCH_CC) +
+               '&subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
+  logAction('launch_mail', cardRow.ID || '—', 'Сформовано лист про запуск АТМ', currentUser);
+  if (link.length <= 1900) { window.location.href = link; return; }
+  const u8 = t => { const b = new TextEncoder().encode(t); let x = '';
+    for (let i = 0; i < b.length; i++) x += String.fromCharCode(b[i]); return btoa(x); };
+  const eml = ['To: ' + LAUNCH_TO, 'Cc: ' + LAUNCH_CC,
+    'Subject: =?UTF-8?B?' + u8(subj) + '?=', 'X-Unsent: 1', 'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: base64',
+    '', u8(body).replace(/(.{76})/g, '$1\r\n')].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([eml], { type: 'message/rfc822' }));
+  a.download = subj + '.eml';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  alert('Лист сформовано.\n\nВідкрийте завантажений файл подвійним кліком — Outlook покаже готовий лист.');
+}
+
 // ---- Заявка на інсталяцію ТБС ----
 const USER_MAIL = {
   'PavelkoOV':       'PavelkoOV@oschadbank.ua',
