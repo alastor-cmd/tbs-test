@@ -1027,7 +1027,8 @@ async function generateKK() {
     const blob = new Blob([rtf], { type: 'application/rtf' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${(ru.short_name || ('РУ ' + code))}_криптоключі_POS_${dd}.rtf`;
+    const tail = items.length === 1 ? items[0].id : (items.length + '_pos');
+    a.download = `${dd}_${(ru.short_name || ('РУ ' + code))}_IG_${tail}.rtf`;
     document.body.appendChild(a);
     setTimeout(() => { a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); }, i * 400);
     i++;
