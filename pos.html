@@ -145,7 +145,7 @@ tr:hover td{background:#f7fbf7;}
   <h1>ПОС-термінали</h1>
   <div class="header-sep"></div>
   <div class="header-sub">Профілі CASH + СБОН</div>
-  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 12:24</span>
+  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 18.08 12:24 prod</span>
   <span class="db-status" id="headerUser"></span>
   <span class="db-status" id="dbStatus">завантаження…</span>
   <button class="back" onclick="openInstruction()" title="Інструкція користувача">📘 Інструкція</button>
@@ -205,6 +205,8 @@ tr:hover td{background:#f7fbf7;}
       <th>Контактна особа</th>
       <th>Каси</th>
       <th>Менеджери</th>
+      <th>Переносні</th>
+      <th>Віп-менеджери</th>
     </tr></thead>
     <tbody id="tbody"></tbody>
   </table>
@@ -350,10 +352,10 @@ tr:hover td{background:#f7fbf7;}
 const SB_URL = 'https://bdluvpnkxkaxtrbgskio.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkbHV2cG5reGtheHRyYmdza2lvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxMDM3MDYsImV4cCI6MjA5NTY3OTcwNn0.ov7f-2wEQ8WCJMABNj9f3O9_11zkUOlwTzVINzGsKs4';
 
-const T_BRANCH = 'pos_branches_test';
-const T_REG    = 'pos_registry_test';
-const T_SN     = 'pos_serials_test';
-const T_RU     = 'pos_ru_test';
+const T_BRANCH = 'pos_branches';
+const T_REG    = 'pos_registry';
+const T_SN     = 'pos_serials';
+const T_RU     = 'pos_ru';
 
 const sbHeaders = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
 
@@ -503,6 +505,7 @@ const CYR2LAT = { 'А':'A','В':'B','Е':'E','З':'3','И':'N','К':'K','М':'M'
 function normId(v) {
   return norm(v).toUpperCase().replace(/[\u0400-\u04FF]/g, ch => CYR2LAT[ch] || ch);
 }
+const allOf = b => (b.windows||[]).concat(b.managers||[], b.portable||[], b.vip||[]);
 function normList(a) {
   return (Array.isArray(a) ? a : []).map((o, i) =>
     typeof o === 'string' ? { n: i + 1, id: norm(o) } : { n: o && o.n ? o.n : i + 1, id: norm(o && o.id) }
@@ -522,7 +525,8 @@ async function loadAll(silent) {
     rus = new Map((ru || []).map(r => [String(r.code).trim(), r]));
     branches = b.map(r => ({
       tvbv: norm(r.tvbv), address: norm(r.address), contact: norm(r.contact),
-      windows: normList(r.windows), managers: normList(r.managers)
+      windows: normList(r.windows), managers: normList(r.managers),
+      portable: normList(r.portable), vip: normList(r.vip)
     }));
     registry = new Map(reg.map(r => [normId(r.terminal_id), r]));
     serials  = new Map(sn.map(r => [normId(r.terminal_id),
@@ -689,9 +693,9 @@ function render() {
   if (q) list = list.filter(b =>
     b.tvbv.toLowerCase().includes(q) || b.address.toLowerCase().includes(q) ||
     b.contact.toLowerCase().includes(q) ||
-    b.windows.concat(b.managers).some(o => String(o.id).toLowerCase().includes(q)));
+    allOf(b).some(o => String(o.id).toLowerCase().includes(q)));
   if (f) list = list.filter(b => {
-    const ids = b.windows.concat(b.managers);
+    const ids = allOf(b);
     if (f === 'sn')       return ids.some(o => serials.has(normId(o.id)));
     if (f === 'nosn')     return !ids.some(o => serials.has(normId(o.id)));
     if (f === 'exported') return ids.some(o => { const s = serials.get(normId(o.id)); return s && s.exported_at; });
@@ -704,6 +708,8 @@ function render() {
     <td class="contact">${b.contact || '—'}</td>
     <td class="id-cell">${idButtons(b.windows, b.tvbv, 'Каса')}</td>
     <td class="id-cell">${idButtons(b.managers, b.tvbv, 'Менеджер')}</td>
+    <td class="id-cell">${idButtons(b.portable, b.tvbv, 'Переносний')}</td>
+    <td class="id-cell">${idButtons(b.vip, b.tvbv, 'Віп-менеджер')}</td>
   </tr>`).join('');
   const em = document.getElementById('emptyMsg');
   if (!list.length) {
@@ -715,7 +721,7 @@ function render() {
 }
 function allIds() {
   const s = new Set();
-  branches.forEach(b => b.windows.concat(b.managers).forEach(o => s.add(normId(o.id))));
+  branches.forEach(b => allOf(b).forEach(o => s.add(normId(o.id))));
   return s;
 }
 function updateStats() {
@@ -1135,7 +1141,7 @@ async function deleteReg() {
 }
 
 // ===== ДОДАВАННЯ / РЕДАГУВАННЯ ТВБВ =====
-let editBranch = null, brWin = 4, brMgr = 3;
+let editBranch = null, brWin = 4, brMgr = 3, brPort = 2, brVip = 2;
 
 function renderSlots(b) {
   const esc = v => String(v || '').replace(/"/g, '&quot;');
@@ -1151,25 +1157,34 @@ function renderSlots(b) {
     grid('Каси', b.windows, brWin, 'Каса') +
     `<button class="btn" style="margin-top:8px" onclick="moreSlots('w')">+ ще каса</button>` +
     grid('Менеджери', b.managers, brMgr, 'Менеджер') +
-    `<button class="btn" style="margin-top:8px" onclick="moreSlots('m')">+ ще менеджер</button>`;
+    `<button class="btn" style="margin-top:8px" onclick="moreSlots('m')">+ ще менеджер</button>` +
+    grid('Переносні', b.portable, brPort, 'Переносний') +
+    `<button class="btn" style="margin-top:8px" onclick="moreSlots('p')">+ ще переносний</button>` +
+    grid('Віп-менеджери', b.vip, brVip, 'Віп-менеджер') +
+    `<button class="btn" style="margin-top:8px" onclick="moreSlots('v')">+ ще віп-менеджер</button>`;
 }
 function collectSlots() {
-  const w = [], m = [];
+  const g = { 'Каса': [], 'Менеджер': [], 'Переносний': [], 'Віп-менеджер': [] };
   document.querySelectorAll('#brSlots input').forEach(inp => {
     const v = inp.value.trim(); if (!v) return;
-    (inp.dataset.k === 'Каса' ? w : m).push({ n: +inp.dataset.n, id: v });
+    (g[inp.dataset.k] || g['Каса']).push({ n: +inp.dataset.n, id: v });
   });
-  return { windows: w.sort((a, b) => a.n - b.n), managers: m.sort((a, b) => a.n - b.n) };
+  const srt = a => a.sort((x, y) => x.n - y.n);
+  return { windows: srt(g['Каса']), managers: srt(g['Менеджер']),
+           portable: srt(g['Переносний']), vip: srt(g['Віп-менеджер']) };
 }
 function moreSlots(kind) {
   const cur = collectSlots();
-  if (kind === 'w') brWin = Math.min(brWin + 1, 15); else brMgr = Math.min(brMgr + 1, 14);
+  if (kind === 'w') brWin = Math.min(brWin + 1, 15);
+  else if (kind === 'm') brMgr = Math.min(brMgr + 1, 19);
+  else if (kind === 'p') brPort = Math.min(brPort + 1, 10);
+  else brVip = Math.min(brVip + 1, 10);
   renderSlots(cur);
 }
 function openBranch(tvbv) {
   editBranch = tvbv || null;
   const b = tvbv ? branches.find(x => x.tvbv === tvbv)
-                 : { tvbv: '', address: '', contact: '', windows: [], managers: [] };
+                 : { tvbv: '', address: '', contact: '', windows: [], managers: [], portable: [], vip: [] };
   if (!b) { alert('Відділення не знайдено.'); return; }
   document.getElementById('brTitle').textContent = tvbv ? 'Відділення ТВБВ №' + tvbv : 'Нове відділення';
   const t = document.getElementById('brTvbv');
@@ -1177,7 +1192,9 @@ function openBranch(tvbv) {
   document.getElementById('brAddr').value = b.address || '';
   document.getElementById('brContact').value = b.contact || '';
   brWin = Math.min(15, Math.max(4, ...b.windows.map(o => o.n), 0) + 1);
-  brMgr = Math.min(14, Math.max(3, ...b.managers.map(o => o.n), 0) + 1);
+  brMgr = Math.min(19, Math.max(3, ...b.managers.map(o => o.n), 0) + 1);
+  brPort = Math.min(10, Math.max(2, ...(b.portable || []).map(o => o.n), 0) + 1);
+  brVip  = Math.min(10, Math.max(2, ...(b.vip || []).map(o => o.n), 0) + 1);
   renderSlots(b);
   document.getElementById('brDel').style.display = (tvbv && isAdmin()) ? '' : 'none';
   document.getElementById('brModalBg').classList.add('show');
@@ -1191,19 +1208,21 @@ async function saveBranch() {
   if (!editBranch && branches.some(b => b.tvbv === tvbv)) {
     alert('Таке ТВБВ вже є у списку — відкрийте його, щоб відредагувати.'); return;
   }
-  const { windows, managers } = collectSlots();
-  const dup = new Set(windows.map(o => normId(o.id)));
+  const { windows, managers, portable, vip } = collectSlots();
+  const seen = new Set(windows.map(o => normId(o.id)));
+  const uniq = arr => arr.filter(o => { const k = normId(o.id); if (seen.has(k)) return false; seen.add(k); return true; });
   const row = {
     tvbv,
     address: document.getElementById('brAddr').value.trim(),
     contact: document.getElementById('brContact').value.trim(),
     windows,
-    managers: managers.filter(o => !dup.has(normId(o.id)))
+    managers: uniq(managers), portable: uniq(portable), vip: uniq(vip)
   };
   try {
     setStatus('збереження відділення…');
     await sbUpsert(T_BRANCH, [row], 'tvbv');
-    logAction(editBranch ? 'branch_edit' : 'branch_add', tvbv, `Кас: ${windows.length}, менеджерів: ${row.managers.length}`);
+    logAction(editBranch ? 'branch_edit' : 'branch_add', tvbv,
+      `Кас: ${windows.length}, менеджерів: ${row.managers.length}, переносних: ${row.portable.length}, віп: ${row.vip.length}`);
     closeBranch();
     await loadAll();
     setStatus('● збережено · ' + new Date().toLocaleTimeString('uk-UA'));
@@ -1232,6 +1251,8 @@ function infoByIdMap() {
   branches.forEach(b => {
     b.windows.forEach(o  => m.set(normId(o.id), { b, label: 'Каса ' + o.n,     ord: o.n }));
     b.managers.forEach(o => m.set(normId(o.id), { b, label: 'Менеджер ' + o.n, ord: 100 + o.n }));
+    (b.portable || []).forEach(o => m.set(normId(o.id), { b, label: 'Переносний ' + o.n,   ord: 200 + o.n }));
+    (b.vip || []).forEach(o      => m.set(normId(o.id), { b, label: 'Віп-менеджер ' + o.n, ord: 300 + o.n }));
   });
   return m;
 }
