@@ -783,12 +783,7 @@
       <div class="fmt">.JRN · .LOG · .TXT — кодування визначається автоматично (UTF-8 / Windows-1251)</div>
     </div>
     <input type="file" id="fileInput" accept=".jrn,.log,.txt,.JRN,.LOG,.TXT" multiple hidden />
-
-    <div class="intro-actions">
-      <button class="btn-ghost" id="sampleBtn" type="button">Показати на прикладі: A1500056, Одеса, 01.07.2026</button>
-    </div>
-
-    <div class="err-box" id="errBox"></div>
+<div class="err-box" id="errBox"></div>
   </div>
 
   <div id="batchSection">
@@ -1778,7 +1773,7 @@
   els.fileInput.addEventListener("change", function () {
     if (els.fileInput.files && els.fileInput.files.length) handleFiles(els.fileInput.files);
   });
-  els.sampleBtn.addEventListener("click", function () {
+  if (els.sampleBtn) els.sampleBtn.addEventListener("click", function () {
     try {
       loadItems([buildSampleItem()]);
     } catch (e) {
