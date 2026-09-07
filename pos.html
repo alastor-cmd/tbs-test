@@ -183,6 +183,8 @@ tr:hover td{background:#f7fbf7;}
     <button class="btn" id="btnAddBranch" onclick="openBranch()">➕ Додати ТВБВ</button>
     <button class="btn" onclick="openRu()">🏢 Довідник РУ</button>
     <button class="btn" id="btnKk" onclick="openKk()" disabled>📄 Виготовлення КК</button>
+    <button class="btn" id="btnSnReq" onclick="openSn()">📩 Запросити СН</button>
+    <button class="btn" id="btnMarkAll" onclick="markAllExported()">✅ Відвантажити всі</button>
     <button class="btn" id="btnMail" onclick="openRn()" disabled>✉️ Лист реноме</button>
     <button class="btn btn-green" id="btnBuild" onclick="openXls()">Сформувати Excel</button>
   </div>
@@ -230,6 +232,24 @@ tr:hover td{background:#f7fbf7;}
       <button class="btn btn-danger" id="brDel" onclick="deleteBranch()">Видалити</button>
       <button class="btn" onclick="closeBranch()">Закрити</button>
       <button class="btn btn-green" onclick="saveBranch()">Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="snModalBg">
+  <div class="modal" style="max-width:760px">
+    <h3>Запит серійних номерів</h3>
+    <div class="sub">Термінали без введеного СН. Дані для листа беруться з реєстру.</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <input class="search-input" id="snSearch" placeholder="Пошук: ID або ТВБВ" oninput="renderSnList()">
+      <button class="btn" onclick="snToggleAll(true)">Вибрати всі</button>
+      <button class="btn" onclick="snToggleAll(false)">Зняти всі</button>
+    </div>
+    <div class="modal-scroll" id="snList"></div>
+    <div class="modal-actions">
+      <span id="snCount" style="margin-right:auto;font-size:12px;color:var(--muted)"></span>
+      <button class="btn" onclick="closeSn()">Закрити</button>
+      <button class="btn btn-green" onclick="generateSnReq()">Сформувати лист</button>
     </div>
   </div>
 </div>
@@ -290,7 +310,6 @@ tr:hover td{background:#f7fbf7;}
       <input class="search-input" id="kkSearch" placeholder="Пошук: ID, СН або ТВБВ" oninput="renderKkList()">
       <button class="btn" onclick="kkToggleAll(true)">Вибрати всі</button>
       <button class="btn" onclick="kkToggleAll(false)">Зняти всі</button>
-      <button class="btn" id="kkMoreBtn" onclick="kkShowAll()">Не знайду ID</button>
     </div>
     <div class="modal-scroll" id="kkList"></div>
     <div class="modal-actions">
@@ -336,6 +355,7 @@ tr:hover td{background:#f7fbf7;}
     <div class="sub" id="mSub"></div>
     <div class="info-box" id="mInfo"></div>
     <button class="btn" id="mRegBtn" onclick="openReg()" style="margin-bottom:14px">✏️ Редагувати дані реєстру</button>
+    <button class="btn" id="mSnReq" onclick="requestSnOne()" style="margin:0 0 14px 8px">📩 Запросити СН</button>
     <label class="field-lbl" for="mSerial">Серійний номер терміналу</label>
     <input type="text" id="mSerial" autocomplete="off" spellcheck="false" placeholder="напр. 250154417011337370330409">
     <div class="hint" id="mHint">Дозволені лише латинські літери та цифри.</div>
@@ -944,20 +964,18 @@ function buildKkRtf(ru, items, num, date) {
   return r + '}';
 }
 
-let kkMode = 'batch', kkSel = new Set();
+let kkSel = new Set();
 
 function openKk() {
   const batch = lastExportBatch();
-  kkMode = batch.length ? 'batch' : 'all';
+
   kkSel = new Set(batch);
   document.getElementById('kkSearch').value = '';
   renderKkList();
   document.getElementById('kkModalBg').classList.add('show');
 }
 function closeKk() { document.getElementById('kkModalBg').classList.remove('show'); }
-function kkShowAll() { kkMode = 'all'; renderKkList(); }
 function kkSource() {
-  if (kkMode === 'batch') return lastExportBatch();
   return [...serials.keys()].sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
 }
 function kkPick(el) { el.checked ? kkSel.add(el.dataset.k) : kkSel.delete(el.dataset.k); updateKkCount(); }
@@ -981,10 +999,8 @@ function updateKkCount() {
 function renderKkList() {
   const info = infoByIdMap(), batch = new Set(lastExportBatch());
   const list = visibleKk();
-  document.getElementById('kkSub').textContent = kkMode === 'batch'
-    ? 'Термінали останнього формування ПЗ. Якщо потрібного немає — натисніть «Не знайду ID».'
-    : 'Усі термінали з введеним серійним номером.';
-  document.getElementById('kkMoreBtn').style.display = kkMode === 'batch' ? '' : 'none';
+  document.getElementById('kkSub').textContent =
+    'Усі термінали з введеним серійним номером. Позначено ті, що були в останньому формуванні.';
   document.getElementById('kkList').innerHTML = list.length
     ? list.map(k => {
         const s = serials.get(k) || {}, b = (info.get(k) || {}).b || {}, reg = registry.get(k) || {};
@@ -994,7 +1010,7 @@ function renderKkList() {
                `<span class="kk-tv">${reg.sbon_tid ? 'СБОН ' + reg.sbon_tid : ''}</span>` +
                `<span class="kk-tv">ТВБВ №${b.tvbv || '—'}</span>` +
                `<span class="kk-ru">РУ ${ruCode(k)}</span>` +
-               (kkMode === 'all' && batch.has(k) ? '<span class="kk-new">остання партія</span>' : '') +
+               (batch.has(k) ? '<span class="kk-new">остання партія</span>' : '') +
                `</label>`;
       }).join('')
     : '<div class="empty">Немає терміналів із серійним номером.</div>';
@@ -1240,6 +1256,120 @@ async function deleteBranch() {
     await loadAll();
     setStatus('● видалено · ' + new Date().toLocaleTimeString('uk-UA'));
   } catch (e) { alert('Не вдалося видалити:\n\n' + e.message); }
+}
+
+// ===== ЗАПИТ СЕРІЙНИХ НОМЕРІВ =====
+const SN_SUBJ = 'Отримання СН для заміни POS-терміналів';
+let snSel = new Set();
+
+function snSource() {
+  return [...allIds()].filter(k => registry.has(k) && !serials.has(k))
+    .sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
+}
+function openSn() {
+  const cand = snSource();
+  if (!cand.length) { alert('Немає терміналів без серійного номера.'); return; }
+  snSel = new Set(cand);
+  document.getElementById('snSearch').value = '';
+  renderSnList();
+  document.getElementById('snModalBg').classList.add('show');
+}
+function closeSn() { document.getElementById('snModalBg').classList.remove('show'); }
+function visibleSn() {
+  const q = (document.getElementById('snSearch').value || '').trim().toLowerCase();
+  const info = infoByIdMap();
+  return snSource().filter(k => {
+    if (!q) return true;
+    const b = (info.get(k) || {}).b || {};
+    return k.toLowerCase().includes(q) || String(b.tvbv || '').toLowerCase().includes(q);
+  });
+}
+function snPick(el) { el.checked ? snSel.add(el.dataset.k) : snSel.delete(el.dataset.k); updateSnCount(); }
+function snToggleAll(on) { visibleSn().forEach(k => on ? snSel.add(k) : snSel.delete(k)); renderSnList(); }
+function updateSnCount() { document.getElementById('snCount').textContent = `Обрано: ${snSel.size}`; }
+function renderSnList() {
+  const info = infoByIdMap();
+  document.getElementById('snList').innerHTML = visibleSn().map(k => {
+    const i = info.get(k) || {}, b = i.b || {}, reg = registry.get(k) || {};
+    return `<label class="kk-row"><input type="checkbox" data-k="${k}" ${snSel.has(k) ? 'checked' : ''} onchange="snPick(this)">` +
+           `<span class="kk-id">${reg.terminal_id || k}</span>` +
+           `<span class="kk-sn">${i.label || ''}</span>` +
+           `<span class="kk-tv">ТВБВ №${b.tvbv || '—'}</span></label>`;
+  }).join('') || '<div class="empty">Нічого не знайдено.</div>';
+  updateSnCount();
+}
+
+// Текст листа: групуємо по ТВБВ, між групами — порожній рядок
+function snReqBody(ids) {
+  const info = infoByIdMap();
+  const groups = new Map();
+  ids.forEach(k => {
+    const reg = registry.get(k) || {}, i = info.get(k) || {};
+    const key = (reg.d2 || (i.b && 'ТВБВ №' + i.b.tvbv) || '—');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({
+      label: i.label || '', ord: i.ord || 999,
+      id: reg.terminal_id || k,
+      addr: [reg.d3, reg.d4].filter(Boolean).join(', ') || '—'
+    });
+  });
+  const blocks = [...groups.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], 'uk', { numeric: true }))
+    .map(([tvbv, items]) => {
+      const lines = [tvbv];
+      items.sort((x, y) => x.ord - y.ord).forEach(it => {
+        if (it.label) lines.push(it.label);
+        lines.push(it.id);
+        lines.push(it.addr);
+        lines.push('Тип підключення - Ethernet');
+      });
+      return lines.join('\r\n');
+    });
+  return ['Доброго дня.',
+          'Прохання надати СН терміналів Desk 2600 i PinPad Desk 1600 для проведення замін.',
+          '', blocks.join('\r\n\r\n')].join('\r\n');
+}
+
+function sendSnReq(ids) {
+  if (!ids.length) { alert('Оберіть хоча б один термінал.'); return; }
+  const body = snReqBody(ids);
+  const link = 'mailto:' + RENOME_EMAIL + '?subject=' + encodeURIComponent(SN_SUBJ) +
+               '&body=' + encodeURIComponent(body);
+  logAction('sn_request', '—', `Запит СН: ${ids.length} терміналів`);
+  if (link.length <= 1900) { window.location.href = link; return; }
+  const u8 = t => { const b = new TextEncoder().encode(t); let x = '';
+    for (let i = 0; i < b.length; i++) x += String.fromCharCode(b[i]); return btoa(x); };
+  const eml = ['To: ' + RENOME_EMAIL, 'Subject: =?UTF-8?B?' + u8(SN_SUBJ) + '?=',
+    'X-Unsent: 1', 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8',
+    'Content-Transfer-Encoding: base64', '', u8(body).replace(/(.{76})/g, '$1\r\n')].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([eml], { type: 'message/rfc822' }));
+  a.download = SN_SUBJ + '.eml';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  alert(`У листі ${ids.length} терміналів — це задовго для прямого відкриття.\n\nВідкрийте завантажений файл подвійним кліком.`);
+}
+function generateSnReq() { const ids = [...snSel]; closeSn(); sendSnReq(ids); }
+function requestSnOne() {
+  if (!curId) return;
+  if (!registry.has(curId)) { alert('Термінала немає в реєстрі — дані для листа взяти нізвідки.'); return; }
+  closeModal(); sendSnReq([curId]);
+}
+
+// ===== ВІДВАНТАЖИТИ ВСІ =====
+async function markAllExported() {
+  const ids = [...serials.keys()].filter(k => !(serials.get(k) || {}).exported_at);
+  if (!ids.length) { alert('Немає терміналів, які очікують відвантаження.'); return; }
+  if (!confirm(`Позначити відвантаженими ${ids.length} терміналів?\n\nФайл при цьому не формується.`)) return;
+  try {
+    setStatus('позначення…');
+    const now = new Date().toISOString();
+    await sbUpsert(T_SN, ids.map(k => ({ terminal_id: k, serial: serials.get(k).serial, exported_at: now })), 'terminal_id');
+    ids.forEach(k => { serials.get(k).exported_at = now; });
+    logAction('mark_exported', '—', `Позначено відвантаженими: ${ids.length}`);
+    render();
+    setStatus('● позначено · ' + new Date().toLocaleTimeString('uk-UA'));
+  } catch (e) { alert('Не вдалося позначити:\n\n' + e.message); }
 }
 
 // ===== ЛИСТ РЕНОМЕ =====
