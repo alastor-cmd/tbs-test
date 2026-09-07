@@ -1,0 +1,1799 @@
+<title>Аналіз лог-файлів АТМ</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --ink: #10151c;
+    --paper: #eef1f5;
+    --surface: #ffffff;
+    --surface-2: #f4f6f9;
+    --line: #d7dee6;
+    --line-soft: #e4e9ee;
+    --muted: #5b6675;
+    --accent: #1b4b91;
+    --accent-ink: #ffffff;
+    --accent-soft: #e4ecfa;
+    --critical: #b3241a;
+    --critical-soft: #fbe7e4;
+    --critical-line: #eec3bd;
+    --warning: #8a5300;
+    --warning-soft: #fbf0dc;
+    --warning-line: #ecd8ac;
+    --info: #1c6fb0;
+    --info-soft: #e4f1fa;
+    --info-line: #c3ddf0;
+    --ok: #1c7a46;
+    --ok-soft: #e3f5ea;
+    --ok-line: #bfe3cd;
+    --shadow: 0 1px 2px rgba(16, 21, 28, 0.04), 0 8px 24px -12px rgba(16, 21, 28, 0.18);
+    --font-display: 'Archivo', 'Segoe UI', sans-serif;
+    --font-body: 'Public Sans', 'Segoe UI', sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #e7ecf2;
+      --paper: #0b0f14;
+      --surface: #121822;
+      --surface-2: #171f2a;
+      --line: #2a3542;
+      --line-soft: #212b36;
+      --muted: #8b98a8;
+      --accent: #7aa2ff;
+      --accent-ink: #0b1220;
+      --accent-soft: #172345;
+      --critical: #ff8177;
+      --critical-soft: #3a1a16;
+      --critical-line: #5c2b24;
+      --warning: #f3bb52;
+      --warning-soft: #382a0d;
+      --warning-line: #5a4517;
+      --info: #7dc4ff;
+      --info-soft: #12293c;
+      --info-line: #1e4560;
+      --ok: #63dd97;
+      --ok-soft: #103322;
+      --ok-line: #1c5236;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ink: #e7ecf2;
+    --paper: #0b0f14;
+    --surface: #121822;
+    --surface-2: #171f2a;
+    --line: #2a3542;
+    --line-soft: #212b36;
+    --muted: #8b98a8;
+    --accent: #7aa2ff;
+    --accent-ink: #0b1220;
+    --accent-soft: #172345;
+    --critical: #ff8177;
+    --critical-soft: #3a1a16;
+    --critical-line: #5c2b24;
+    --warning: #f3bb52;
+    --warning-soft: #382a0d;
+    --warning-line: #5a4517;
+    --info: #7dc4ff;
+    --info-soft: #12293c;
+    --info-line: #1e4560;
+    --ok: #63dd97;
+    --ok-soft: #103322;
+    --ok-line: #1c5236;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: var(--accent); }
+  ::selection { background: var(--accent-soft); }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 28px 20px 80px;
+  }
+
+  /* ---------- Topbar ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-bottom: 22px;
+    margin-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .mark {
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border-radius: 9px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    display: grid;
+    place-items: center;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+  .brand h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: -0.01em;
+  }
+  .brand p {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .topbar .spacer { flex: 1; }
+  .btn-reset {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .btn-reset:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- Intro / uploader ---------- */
+  .intro-head { margin-bottom: 18px; }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 8px;
+  }
+  .intro-head h2 {
+    font-family: var(--font-display);
+    font-size: 27px;
+    line-height: 1.18;
+    margin: 0 0 10px;
+    text-wrap: balance;
+    max-width: 30ch;
+  }
+  .intro-head p {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  .dropzone {
+    margin-top: 22px;
+    border: 1.5px dashed var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .dropzone.drag {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .dropzone .dz-icon {
+    width: 46px;
+    height: 46px;
+    margin: 0 auto 14px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    display: grid;
+    place-items: center;
+  }
+  .dropzone h3 {
+    font-family: var(--font-display);
+    font-size: 16px;
+    margin: 0 0 4px;
+  }
+  .dropzone p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .dropzone .fmt {
+    margin-top: 14px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  .intro-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  .btn-primary, .btn-ghost {
+    font: inherit;
+    font-weight: 600;
+    font-size: 13.5px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 1px solid transparent;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line);
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .or-sep { color: var(--muted); font-size: 12.5px; }
+
+  .err-box {
+    display: none;
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--critical-soft);
+    border: 1px solid var(--critical-line);
+    color: var(--critical);
+    font-size: 13.5px;
+  }
+
+  /* ---------- Batch mode ---------- */
+  #batchSection { display: none; margin-bottom: 26px; }
+  .batch-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .batch-cdm {
+    display: none;
+    border: 1px solid var(--warning-line);
+    background: var(--warning-soft);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 18px;
+  }
+  .batch-cdm h4 {
+    font-family: var(--font-display);
+    font-size: 14.5px;
+    margin: 0 0 4px;
+    color: var(--ink);
+  }
+  .batch-cdm p.lead { margin: 0 0 12px; color: var(--muted); font-size: 13px; max-width: 68ch; }
+  .cdm-group { margin-bottom: 10px; }
+  .cdm-group:last-child { margin-bottom: 0; }
+  .cdm-group .code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--warning);
+  }
+  .cdm-group .occ {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    display: block;
+    margin-top: 3px;
+  }
+  .cdm-group .occ span { margin-right: 12px; display: inline-block; }
+  .cdm-group .cdm-reason {
+    font-size: 12.5px;
+    color: var(--ink);
+    margin-top: 3px;
+  }
+
+  .batch-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .batch-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--muted);
+    border-radius: 10px;
+    padding: 11px 14px;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    width: 100%;
+  }
+  .batch-row.sev-critical { border-left-color: var(--critical); }
+  .batch-row.sev-warning { border-left-color: var(--warning); }
+  .batch-row.sev-ok { border-left-color: var(--ok); }
+  .batch-row[aria-current="true"] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .batch-row .bname {
+    font-family: var(--font-mono);
+    font-size: 12.8px;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  .batch-row .bmeta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .batch-row .bcounts {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .bpill {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .bpill.critical { background: var(--critical-soft); color: var(--critical); }
+  .bpill.warning { background: var(--warning-soft); color: var(--warning); }
+  .bpill.info { background: var(--info-soft); color: var(--info); }
+  .bpill.ok { background: var(--ok-soft); color: var(--ok); }
+  .batch-row .barrow { color: var(--muted); font-size: 15px; }
+
+  .viewing-tag {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .viewing-tag strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- Results ---------- */
+  #results { display: none; }
+
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 22px;
+  }
+  .stat {
+    background: var(--surface);
+    padding: 13px 15px;
+  }
+  .stat .k {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .stat .v {
+    font-family: var(--font-mono);
+    font-size: 14.5px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .verdict {
+    border-radius: 14px;
+    border: 1px solid var(--critical-line);
+    background: var(--critical-soft);
+    padding: 22px 24px;
+    margin-bottom: 26px;
+    box-shadow: var(--shadow);
+  }
+  .verdict.sev-ok { border-color: var(--ok-line); background: var(--ok-soft); }
+  .verdict.sev-warning { border-color: var(--warning-line); background: var(--warning-soft); }
+  .verdict .vlabel {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--critical);
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  .verdict.sev-ok .vlabel { color: var(--ok); }
+  .verdict.sev-warning .vlabel { color: var(--warning); }
+  .verdict h3 {
+    font-family: var(--font-display);
+    font-size: 20px;
+    line-height: 1.3;
+    margin: 0 0 10px;
+    text-wrap: balance;
+  }
+  .verdict .vbody {
+    margin: 0;
+    font-size: 14.5px;
+    color: var(--ink);
+    max-width: 68ch;
+  }
+  .verdict .vbody strong { font-weight: 700; }
+
+  .timeline {
+    display: flex;
+    gap: 6px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  .tl-pt {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--surface);
+    border: 1px solid var(--critical-line);
+    color: var(--ink);
+    padding: 5px 9px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tl-pt::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--critical);
+  }
+
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 30px 0 12px;
+    flex-wrap: wrap;
+  }
+  .section-head h4 {
+    font-family: var(--font-display);
+    font-size: 15.5px;
+    margin: 0;
+  }
+
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    font: inherit;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .chip[aria-pressed="true"] {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .chip.c-critical .dot { background: var(--critical); }
+  .chip.c-warning .dot { background: var(--warning); }
+  .chip.c-info .dot { background: var(--info); }
+  .chip.c-all .dot { background: var(--muted); }
+
+  .findings { display: flex; flex-direction: column; gap: 10px; }
+  .finding {
+    display: grid;
+    grid-template-columns: 4px 1fr;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .finding .stripe { background: var(--muted); }
+  .finding.sev-critical .stripe { background: var(--critical); }
+  .finding.sev-warning .stripe { background: var(--warning); }
+  .finding.sev-info .stripe { background: var(--info); }
+  .finding-body { padding: 14px 16px 15px; }
+  .finding-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .sev-badge {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 5px;
+  }
+  .sev-critical .sev-badge { background: var(--critical-soft); color: var(--critical); }
+  .sev-warning .sev-badge { background: var(--warning-soft); color: var(--warning); }
+  .sev-info .sev-badge { background: var(--info-soft); color: var(--info); }
+  .finding-time {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .finding h5 {
+    font-family: var(--font-display);
+    font-size: 15px;
+    margin: 0 0 5px;
+  }
+  .finding p { margin: 0; color: var(--muted); font-size: 13.8px; max-width: 70ch; }
+  .finding-actions { margin-top: 10px; display: flex; gap: 10px; align-items: center; }
+  .link-btn {
+    font: inherit;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .evidence {
+    display: none;
+    margin-top: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    white-space: pre-wrap;
+    color: var(--ink);
+    overflow-x: auto;
+  }
+
+  .empty-state {
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    padding: 26px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+
+  details.rawlog {
+    margin-top: 8px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  details.rawlog > summary {
+    cursor: pointer;
+    padding: 13px 16px;
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  details.rawlog > summary::-webkit-details-marker { display: none; }
+  details.rawlog > summary::after {
+    content: "▾";
+    color: var(--muted);
+    transition: transform 0.15s ease;
+  }
+  details.rawlog[open] > summary::after { transform: rotate(-180deg); }
+  .rawlog-controls {
+    padding: 0 16px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .rawlog-controls input {
+    width: 100%;
+    font: inherit;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 8px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  .rawlog-controls input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .rawlog-body {
+    max-height: 460px;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 12.3px;
+    line-height: 1.65;
+    background: var(--surface-2);
+  }
+  .logline {
+    padding: 1px 16px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--ink);
+    border-left: 3px solid transparent;
+  }
+  .logline.dim { color: var(--muted); }
+  .logline.hidden { display: none; }
+  .logline.flash {
+    background: var(--accent-soft);
+    border-left-color: var(--accent);
+  }
+  .logline .ln {
+    display: inline-block;
+    width: 46px;
+    color: var(--muted);
+    opacity: 0.55;
+    user-select: none;
+  }
+
+  .footnote {
+    margin-top: 30px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 560px) {
+    .intro-head h2 { font-size: 23px; }
+    .dropzone { padding: 28px 16px; }
+  }
+
+  /* ---------- Cycle reconciliation ---------- */
+  .recon-section { margin-top: 46px; padding-top: 6px; border-top: 1px solid var(--line); }
+  .recon-lead { margin: 0 0 18px; color: var(--muted); font-size: 13.8px; max-width: 78ch; }
+  .recon-uploads {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 720px) { .recon-uploads { grid-template-columns: 1fr; } }
+  .recon-upload .dropzone { margin-top: 0; padding: 26px 18px; }
+  .recon-upload .dropzone.filled { border-color: var(--ok-line); background: var(--ok-soft); }
+  .recon-btn-row { display: flex; justify-content: center; margin-top: 18px; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .recon-coverage {
+    display: none;
+    margin: 4px 0 22px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--info-soft);
+    border: 1px solid var(--info-line);
+    color: var(--info);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .recon-shortage {
+    display: none;
+    margin: 0 0 22px;
+    border-radius: 14px;
+    border: 1px solid var(--critical-line);
+    background: var(--critical-soft);
+    padding: 20px 22px;
+  }
+  .recon-shortage .vlabel {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--critical); font-weight: 600; margin-bottom: 6px;
+  }
+  .recon-shortage .amt { font-family: var(--font-mono); font-size: 26px; font-weight: 600; color: var(--ink); }
+  .recon-shortage p { margin: 8px 0 0; color: var(--muted); font-size: 13px; max-width: 70ch; }
+
+  .recon-cause { margin-top: 38px; padding-top: 30px; border-top: 1px solid var(--line); }
+  .recon-cause-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .recon-cause-row label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .recon-cause-row input, .recon-cause-row select {
+    font: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 11px;
+    min-width: 150px;
+  }
+  .recon-cause-row input:focus, .recon-cause-row select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .recon-cause-row button { align-self: end; }
+  .finding.sev-ok .stripe { background: var(--ok); }
+  .sev-ok .sev-badge { background: var(--ok-soft); color: var(--ok); }
+</style>
+
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="mark">A/T</div>
+    <div class="brand">
+      <h1>Аналіз лог-файлів</h1>
+      <p>Розбір журналів (.JRN) банкоматів</p>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn-reset" id="resetBtn" type="button">↺ Новий файл</button>
+  </div>
+
+  <div id="intro">
+    <div class="intro-head">
+      <p class="eyebrow">Журнал → причина відмови</p>
+      <h2>Чому банкомат не вдалося завантажити готівкою</h2>
+      <p>Перетягніть один або кілька файлів журналу термінала (.JRN / .LOG / .TXT) — сторінка сама знайде заблоковані касети, апаратні помилки диспенсера, аварійні перезавантаження та сесії, після яких банкомат лишився без готівки, з точним часом і рядком журналу для кожної знахідки. При завантаженні пачкою вона ще й покаже, які несправності повторюються в кількох файлах.</p>
+    </div>
+
+    <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Завантажити файли журналу">
+      <div class="dz-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>
+      </div>
+      <h3>Перетягніть файл(и) журналу сюди</h3>
+      <p>або натисніть, щоб обрати один чи кілька файлів на диску — можна пачкою</p>
+      <div class="fmt">.JRN · .LOG · .TXT — кодування визначається автоматично (UTF-8 / Windows-1251)</div>
+    </div>
+    <input type="file" id="fileInput" accept=".jrn,.log,.txt,.JRN,.LOG,.TXT" multiple hidden />
+
+    <div class="intro-actions">
+      <button class="btn-ghost" id="sampleBtn" type="button">Показати на прикладі: A1500056, Одеса, 01.07.2026</button>
+    </div>
+
+    <div class="err-box" id="errBox"></div>
+  </div>
+
+  <div id="batchSection">
+    <div class="batch-summary" id="batchSummary"></div>
+    <div class="batch-cdm" id="batchCdm">
+      <h4>Повторювані коди помилок CDM у пачці</h4>
+      <p class="lead">Той самий код помилки в кількох файлах чи в одному файлі кілька разів — ознака системної, а не разової несправності. Значення коду — за перекладеною таблицею виробника (Diebold Nixdorf / Wincor Nixdorf CMD-V4).</p>
+      <div id="batchCdmList"></div>
+    </div>
+    <div class="section-head">
+      <h4>Файли <span id="batchCount" style="color:var(--muted); font-weight:400;"></span></h4>
+    </div>
+    <div class="batch-list" id="batchList"></div>
+  </div>
+
+
+  <div id="results">
+
+    <div class="viewing-tag" id="viewingTag">Перегляд файлу: <strong id="viewingName"></strong></div>
+
+    <div class="stats-bar" id="statsBar"></div>
+
+    <div class="verdict" id="verdict">
+      <div class="vlabel" id="verdictLabel">Висновок</div>
+      <h3 id="verdictTitle"></h3>
+      <p class="vbody" id="verdictBody"></p>
+      <div class="timeline" id="verdictTimeline"></div>
+    </div>
+
+    <div class="section-head">
+      <h4>Знахідки <span id="findingsCount" style="color:var(--muted); font-weight:400;"></span></h4>
+      <div class="chips" id="filterChips"></div>
+    </div>
+    <div class="findings" id="findingsList"></div>
+
+    <div class="section-head" style="margin-bottom:0;">
+      <h4>Повний журнал</h4>
+    </div>
+    <details class="rawlog" id="rawlogDetails">
+      <summary>Переглянути весь файл рядок за рядком</summary>
+      <div class="rawlog-controls">
+        <input type="text" id="rawSearch" placeholder="Пошук у журналі (наприклад: ERROR, CASSETTE, SERVICE)" />
+      </div>
+      <div class="rawlog-body" id="rawlogBody"></div>
+    </details>
+
+    <div class="footnote" id="footnote"></div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------
+  // Embedded example journal (A1500056, Odesa, 2026-07-01) — base64
+  // of the original .JRN bytes, decoded client-side same as any
+  // uploaded file so the demo exercises the real code path.
+  // ---------------------------------------------------------------
+  var SAMPLE_B64 = "MDg6NDY6MDcgW0FUTVhdPEVWRU5UPiBQUk9UT1BBUyBJUyBQUk9URUNURUQgQlkgQVRNU0VDVVJJWA0KMDg6NDY6MDcgW0FUTVhdPEVWRU5UPiBBR0VOVCBJUyBSVU5OSU5HIChQUk9EVUNUIFZFUlNJT04gMi4xLjUuMTE4OSkNCjA4OjQ2OjA5IFtBVE1YXTxFVkVOVD4gQVRNU0VDVVJJWCBKT1VSTkFMIEZSQU1FV09SSyBMQVNUIElETEUgUEVSSU9EDQowODo0NjowOSAJV0FTIEZST00gMjAyNi0wNi0zMCAxNTo0OToyMyBUSUxMIDIwMjYtMDctMDEgMDg6NDY6MDcNCjA4OjQ2OjA5IAlSRUFTT04gOiBTSFVURE9XTg0KMDg6NDY6MTAgW0FUTVhdPEVWRU5UPiBBVE1TRUNVUklYIEFHRU5UIExBU1QgSURMRSBQRVJJT0QgV0FTDQowODo0NjoxMCAJRlJPTSAyMDI2LTA2LTMwIDE1OjQ4OjM3IFRJTEwgMjAyNi0wNy0wMSAwODo0NTowNg0KMDg6NDY6MTAgCVJFQVNPTiA6IElMTEVHQUwgU0hVVERPV04NCjA4OjQ2OjI2IEFQUExJQ0FUSU9OIFNUQVJURUQNCjA4OjQ3OjIwIFtBVE1fVkFdIEFwcGxpY2F0aW9uIHN0YXJ0ZWQuIFZlcnNpb24gMTMyMiAyNDExMTgNCjA4OjQ3OjIxIFtBVE1fVkFdIExpY2Vuc2Uga2V5IGlzIGNvcnJlY3QuIFBlcmlvZCA6IFVOTElNSVRFRA0KMDg6NDc6MjkgT1BFUkFUT1IgRE9PUiBPUEVORUQNCjA4OjQ3OjI5IENPTU1VTklDQVRJT04gT05MSU5FDQoxMToxNzoxOCBHTyBPVVQgT0YgU0VSVklDRSBDT01NQU5EDQoxMToxNzoyMCBHTyBJTiBTRVJWSUNFIENPTU1BTkQNCjExOjE4OjEwIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxMToxODoxMCBUUkFDSyAyIERBVEE6IDgyMzIxNyoqKioqKjgzNTkNCjExOjE4OjE3IFBJTiBFTlRFUkVEDQoxMToxODoxOSBUUkFOU0FDVElPTiBSRVFVRVNUIEkgICAgICBBDQoxMToxODoyMCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDMwMCBGVU5DVElPTiBFMDI5HUgNCjExOjE4OjIyIENBUkQoODIzMjE3KioqKioqODM1OSkgVEFLRU4NCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTE6MTg6MjENCjguLjgzNTkNClJFUExFTklTSE1FTlQgMDANCjI1MTAxMy82MTgyNDExOTM2NDAgICAgICAgKzAuMDAgVUFIDQoxMToxODoyMyBHTyBPVVQgT0YgU0VSVklDRSBDT01NQU5EDQoxMToxODozMiA8LSBUUkFOU0FDVElPTiBFTkQNCjExOjE5OjUzIFNFUlZJQ0VNT0RFIEVOVEVSRUQNCkA1IERldGFpbCBDb3VudGVycw0KDQpDUEkyMA0K7C4gzuTl8eAsIO/wLiDY5eL35e3q4CwgMTHgDQrBwM3KzszA0jogQTE1MDAwMDU2DQowMS4wNy4yMDI2IPHwICAxMToxOTo1OA0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCsrg8eXy4CAxOiBVQUggNQ0KyuDx5fLgIOKz5PHz8u3/DQrHwMLAzdLAxsXNzjogIC0tLS0g0dPMwDogIC0tLS0gVUFIDQrHwMsuwiDKwNHF0rI6IC0tLS0g0dPMwDogIC0tLS0gVUFIDQrCssTB0MDKzsLAzc46IC0tLS0g0dPMwDogIC0tLS0gVUFIDQrHwMvI2MjLztHcOiAgIC0tLS0g0dPMwDogIC0tLS0gVUFIDQrCyMTAzc46ICAgICAgIC0tLS0g0dPMwDogIC0tLS0gVUFIDQrHwMHT0s46ICAgICAgIC0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQrK4PHl8uAgMjogVUFIIDUgDQrK4PHl8uAg4rPk8fPy7f8NCsfAwsDN0sDGxc3OOiAgLS0tLSDR08zAOiAgLS0tLSBVQUgNCsfAyy7CIMrA0cXSsjogLS0tLSDR08zAOiAgLS0tLSBVQUgNCsKyxMHQwMrOwsDNzjogLS0tLSDR08zAOiAgLS0tLSBVQUgNCsfAy8jYyMvO0dw6ICAgLS0tLSDR08zAOiAgLS0tLSBVQUgNCsLIxMDNzjogICAgICAgLS0tLSDR08zAOiAgLS0tLSBVQUgNCsfAwdPSzjogICAgICAgLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCsrg8eXy4CAzOiBVQUggNQ0KyuDx5fLgIOKz5PHz8u3/DQrHwMLAzdLAxsXNzjogIC0tLS0g0dPMwDogIC0tLS0gVUFIDQrHwMsuwiDKwNHF0rI6IC0tLS0g0dPMwDogIC0tLS0gVUFIDQrCssTB0MDKzsLAzc46IC0tLS0g0dPMwDogIC0tLS0gVUFIDQrHwMvI2MjLztHcOiAgIC0tLS0g0dPMwDogIC0tLS0gVUFIDQrCyMTAzc46ICAgICAgIC0tLS0g0dPMwDogIC0tLS0gVUFIDQrHwMHT0s46ICAgICAgIC0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQrK4PHl8uAgNDogVUFIIDUNCsrg8eXy4CDis+Tx8/Lt/w0Kx8DCwM3SwMbFzc46ICAtLS0tINHTzMA6ICAtLS0tIFVBSA0Kx8DLLsIgysDRxdKyOiAtLS0tINHTzMA6ICAtLS0tIFVBSA0KwrLEwdDAys7CwM3OOiAtLS0tINHTzMA6ICAtLS0tIFVBSA0Kx8DLyNjIy87R3DogICAtLS0tINHTzMA6ICAtLS0tIFVBSA0KwsjEwM3OOiAgICAgICAtLS0tINHTzMA6ICAtLS0tIFVBSA0Kx8DB09LOOiAgICAgICAtLS0tDQo9PT09PT09PT09PT09PT09PT09PT09PT09PT09PQ0Kx8DDwMvczcAg0dPMwCDCIMHAzcrOzMDSsjoNCg0KwrLEwdDAys7CwM3OIMLR3M7DzjogMA0Kx8DS0MjMwM3I1SDKwNDSzso6IDANCg0Kx8DB08LAzdw6IDANCrPt6uDx7uLg7e4gMzAuMDYuMjAyNiAgMTM6MTgNCg0Kz7LEz8jRDQogICAgICAgIC0tLS0tLS0tLS0NCiAgICAgICAgICAgINfFyiAxLzENCg0KMTE6MjA6MjAgU0FGRSBET09SIE9QRU5FRA0KMTE6MjA6MzcgQk9UVE9NIENBU1NFVFRFIElOU0VSVEVEDQoxMToyMDo0MyBUSElSRCBDQVNTRVRURSBJTlNFUlRFRA0KMTE6MjA6NDggU0VDT05EIENBU1NFVFRFIElOU0VSVEVEDQoxMToyMDo1MyBUT1AgQ0FTU0VUVEUgSU5TRVJURUQNCjExOjIwOjU2IFJFSkVDVCBDQVNTRVRURSBJTlNFUlRFRA0KDQoNCkNBU1MuIEVYQ0hBTkdFDQoNCsTg8uA6IDA3LzAxLzI2INfg8TogMTE6MjE6NTgNCk9sZCBDb3VudGVycw0KQCAtLS0tIC0tLS0gICAgMCBNSQ0KQCAtLS0tIC0tLS0gICAgMCBNSQ0KQCAtLS0tIC0tLS0gICAgMCBNSQ0KQCAtLS0tIC0tLS0gICAgMCBNSQ0KwfDg6i4gMDAwMDANCsfg4S4gMDAwMDANCg0KDQoNCkNBU1MuIEVYQ0hBTkdFDQoNCsTg8uA6IDA3LzAxLzI2INfg8TogMTE6MjE6NTgNCk9sZCBDb3VudGVycw0KQCAtLS0tIC0tLS0gICAgMCBNSQ0KQCAtLS0tIC0tLS0gICAgMCBNSQ0KQCAtLS0tIC0tLS0gICAgMCBNSQ0KQCAtLS0tIC0tLS0gICAgMCBNSQ0KwfDg6i4gMDAwMDANCsfg4S4gMDAwMDANCg0KTmV3IENvdW50ZXJzDQpFIFVBSCAgIDEwMCAgNTAwIE5SDQpGIFVBSCAgIDIwMCAxNTAwIE5SDQpHIFVBSCAgIDUwMCAyMTAwIE5SDQpIIFVBSCAgMTAwMCAyMzAwIE5SDQrB8ODqLiAwMDAwMA0Kx+DhLiAwMDAwMA0KDQpANSBEZXRhaWwgQ291bnRlcnMNCg0KQ1BJMjANCuwuIM7k5fHgLCDv8C4g2OXi9+Xt6uAsIDEx4A0KwcDNys7MwNI6IEExNTAwMDA1Ng0KMDEuMDcuMjAyNiDx8CAgMTE6MjU6MzcNCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQrK4PHl8uAgMTogVUFIIDEwMA0KyuDx5fLgIOIg8O7h7vKzDQrHwMLAzdLAxsXNzjogICA1MDAg0dPMwDogNTAwMDAgVUFIDQrHwMsuwiDKwNHF0rI6ICA0OTEg0dPMwDogNDkxMDAgVUFIDQrCssTB0MDKzsLAzc46ICAgIDkg0dPMwDogICA5MDAgVUFIDQrHwMvI2MjLztHcOiAgICA1MDAg0dPMwDogNTAwMDAgVUFIDQrCyMTAzc46ICAgICAgICAgIDAg0dPMwDogICAgIDAgVUFIDQrHwMHT0s46ICAgICAgICAgIDANCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQrK4PHl8uAgMjogVUFIIDIwMCANCsrg8eXy4CDiIPDu4e7ysw0Kx8DCwM3SwMbFzc46ICAxNTAwINHTzMA6MzAwMDAwIFVBSA0Kx8DLLsIgysDRxdKyOiAxNDkxINHTzMA6Mjk4MjAwIFVBSA0KwrLEwdDAys7CwM3OOiAgICA5INHTzMA6ICAxODAwIFVBSA0Kx8DLyNjIy87R3DogICAxNTAwINHTzMA6MzAwMDAwIFVBSA0KwsjEwM3OOiAgICAgICAgICAwINHTzMA6ICAgICAwIFVBSA0Kx8DB09LOOiAgICAgICAgICAwDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KyuDx5fLgIDM6IFVBSCA1MDANCsrg8eXy4CDiIPDu4e7ysw0Kx8DCwM3SwMbFzc46ICAyMTAwINHTzMA6MTA1MDAwMCBVQUgNCsfAyy7CIMrA0cXSsjogMjA5MSDR08zAOjEwNDU1MDAgVUFIDQrCssTB0MDKzsLAzc46ICAgIDkg0dPMwDogIDQ1MDAgVUFIDQrHwMvI2MjLztHcOiAgIDIxMDAg0dPMwDoxMDUwMDAwIFVBSA0KwsjEwM3OOiAgICAgICAgICAwINHTzMA6ICAgICAwIFVBSA0Kx8DB09LOOiAgICAgICAgICAwDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KyuDx5fLgIDQ6IFVBSCAxMDAwDQrK4PHl8uAg4iDw7uHu8rMNCsfAwsDN0sDGxc3OOiAgMjMwMCDR08zAOjIzMDAwMDAgVUFIDQrHwMsuwiDKwNHF0rI6IDIyOTEg0dPMwDoyMjkxMDAwIFVBSA0KwrLEwdDAys7CwM3OOiAgICA5INHTzMA6ICA5MDAwIFVBSA0Kx8DLyNjIy87R3DogICAyMzAwINHTzMA6MjMwMDAwMCBVQUgNCsLIxMDNzjogICAgICAgICAgMCDR08zAOiAgICAgMCBVQUgNCsfAwdPSzjogICAgICAgICAgMA0KPT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCsfAw8DL3M3AINHTzMAgwiDBwM3KzszA0rI6DQozNzAwMDAwIFVBSCANCsKyxMHQwMrOwsDNziDC0dzOw846IDM2DQrHwNLQyMzAzcjVIMrA0NLOyjogMA0KDQrHwMHTwsDN3DogMA0Ks+3q4PHu4uDt7iAwMS4wNy4yMDI2ICAxMToyMg0KDQrPssTPyNENCiAgICAgICAgLS0tLS0tLS0tLQ0KICAgICAgICAgICAg18XKIDEvMQ0KDQoxMToyNjo0MSBTQUZFIERPT1IgQ0xPU0VEDQoxMToyNzoyNCBDQVNIIENPVU5URVJTIEJFRk9SRSBTT1ANCiAgIFVBSCAgICAgICAgNSAgICAwKg0KICAgVUFIICAgICAgICA1ICAgIDAqDQogICBVQUggICAgICAgIDUgICAgMCoNCiAgIFVBSCAgICAgICAgNSAgICAwKg0KICAgUkVUUkFDVFM6ICAgIDANCiAgIFJFSkVDVFM6ICAgICAwDQoxMToyNzoyNCBDQVNIIENPVU5URVJTIEFGVEVSIFNPUA0KICAgVUFIICAgICAgMTAwICA0OTENCiAgIFVBSCAgICAgIDIwMCAxNDkxDQogICBVQUggICAgICA1MDAgMjA5MQ0KICAgVUFIICAgICAxMDAwIDIyOTENCiAgIFJFVFJBQ1RTOiAgICAwDQogICBSRUpFQ1RTOiAgICAzNg0KMTE6Mjc6MjUgU0VSVklDRU1PREUgTEVGVA0KMTE6Mjc6MjUgR08gT1VUIE9GIFNFUlZJQ0UgQ09NTUFORA0KMTE6Mjc6MjcgR08gSU4gU0VSVklDRSBDT01NQU5EDQoxMToyODoyMiAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTE6Mjg6MjIgVFJBQ0sgMiBEQVRBOiA4MjMyMTcqKioqKio4MzU5DQoxMToyODozMiBQSU4gRU5URVJFRA0KMTE6Mjg6MzggSU5GT1JNQVRJT04gNTAwIEVOVEVSRUQNCjExOjI4OjQ2IElORk9STUFUSU9OIDE1MDAgRU5URVJFRA0KMTE6Mjg6NTAgVFJBTlNBQ1RJT04gUkVRVUVTVCBJRyBDICBBQQ0KMTE6Mjg6NTEgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMDkgRlVOQ1RJT04gRDMyOR1aMDAwHVowMDAdWjAwMB1aDQogICAgMSAgICAyICAgIDMgICAgNA0KICAxMDAgIDIwMCAgNTAwIDEwMDANCiAgICAwICAgIDAgICAgMCAgICAwDQogICAgOSAgICA5ICAgIDkgICAgOQ0KDQoxMToyOTowMCBJTkZPUk1BVElPTiAyMTAwIEVOVEVSRUQNCjExOjI5OjA0IElORk9STUFUSU9OIDIzMDAgRU5URVJFRA0KMTE6Mjk6MDcgVFJBTlNBQ1RJT04gUkVRVUVTVCBJRyBEICBBQQ0KMTE6Mjk6MDggVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMDkgRlVOQ1RJT04gRDMyOR1aMDAwHVowMDAdWjAwMB1aDQogICAgMSAgICAyICAgIDMgICAgNA0KICAxMDAgIDIwMCAgNTAwIDEwMDANCiAgNTAwIDE1MDAgICAgMCAgICAwDQogICAgOSAgICA5ICAgIDkgICAgOQ0KDQoxMToyOToxMiBJTkZPUk1BVElPTiAgRU5URVJFRA0KMTE6Mjk6MTQgVFJBTlNBQ1RJT04gUkVRVUVTVCBIICAgICBJQQ0KMTE6Mjk6MTYgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMDUgRlVOQ1RJT04gRTMyOR1aMDAwHVowMDAdWjAwMB1IDQoxMToyOToyMCBDQVJEKDgyMzIxNyoqKioqKjgzNTkpIFRBS0VODQrEwNLAICAgICDXwNEgICAgwcDNys7MwNINCjAxLTA3LTI2IDExOjI5IEExNTAwMDU2DQpPREVTQSwxMUEsU0hFVkNIRU5LQQ0KQlJBTkNIIDEwMDE1LTA0ODINCs3OzMXQIMrA0NLKyCA4Li44MzU5DQrCyM/I0crAICjBwMvAzdEpIE4xMTU0Og0K0MDR1c7EOiAgICAgICAgICAgIDAuMDAgVUFIDQogICAgICAgICAgKyAgIDEgLSAgIDIgLSAgIDMgLSAgIDQgLQ0K0dLA0tPRICAgIHwgICBPSywgICBPSywgICBPSywgICBPSw0Kzc7MSc3AyyAgIHwgIDEwMCwgIDIwMCwgIDUwMCwgMTAwMA0KwsDL3tLAICAgIHwgIFVBSCwgIFVBSCwgIFVBSCwgIFVBSA0Kx8DCwM3SwMYuIHwgIDUwMCwgMTUwMCwgMjEwMCwgMjMwMA0KwsjEwM3OICAgIHwgICAgMCwgICAgMCwgICAgMCwgICAgMA0Kx8DLyNjIy87R3HwgIDUwMCwgMTUwMCwgMjEwMCwgMjMwMA0KwknEwdDAys7CLnwgICAgOSwgICAgOSwgICAgOSwgICAgOQ0Kx8DB09LI1SAgIHwgICAgMCwgICAgMCwgICAgMCwgICAgMA0KIMLR3M7DziDR08zAIMIgwcDNys7MwNJJOiAzNzAwMDAwLjAwIFVBSA0KUVJEQVRBMDI5DQrHwNLQyMzAzc4gDQoxMToyOToyMSBHTyBPVVQgT0YgU0VSVklDRSBDT01NQU5EDQoxMToyOTozMCA8LSBUUkFOU0FDVElPTiBFTkQNCjExOjI5OjMyIEdPIElOIFNFUlZJQ0UgQ09NTUFORA0KMTE6MzA6MTggLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjExOjMwOjE4IFRSQUNLIDIgREFUQTogOTgwNDQwKioqKioqMjExMA0KMTE6MzA6MzggUElOIEVOVEVSRUQNCjExOjMwOjQxIFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjExOjMwOjQzIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjExOjMwOjQzIFRWUjogODA4MDE0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDExOjMwOjQzDQo5Li4yMTEwDQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KOTIzMzU1LzYxODI0MTE5NDgwMiAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTE6MzA6NDggVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUMgIEZIQQ0KMTE6MzA6NDkgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMDAgRlVOQ1RJT04gRTA3MB1CMDcxHUgdQzA3Mg0KMTE6MzA6NTAgVFZSOiA4MDgwMDQwMDAwLCBUU0k6IDYwMDANCjExOjMwOjU0IENBUkQoOTgwNDQwKioqKioqMjExMCkgVEFLRU4NCjExOjMyOjE3IFRSQU5TQUNUSU9OIDQ4MTIgRkFJTEVEDQoxMTozMjoxNyBDRE0gRVJST1I6IDAwMDAwMDFEIDIwMDAxODMxIDAwMDAwMDAwDQoxMTozMjoxNyBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDQ3NyBGVU5DVElPTiBRHUgNCjExOjMyOjE4IEdPIE9VVCBPRiBTRVJWSUNFIENPTU1BTkQNCjExOjMyOjIzIDwtIFRSQU5TQUNUSU9OIEVORA0KMTE6MzI6MjUgR08gSU4gU0VSVklDRSBDT01NQU5EDQoxMTozNDoyMSAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTE6MzQ6MjEgVFJBQ0sgMiBEQVRBOiA4MjMyMTcqKioqKio4MzU5DQoxMTozNDozNSBQSU4gRU5URVJFRA0KMTE6MzQ6MzggVFJBTlNBQ1RJT04gUkVRVUVTVCBJICAgICAgQQ0KMTE6MzQ6NDAgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMDAgRlVOQ1RJT04gRTAyOR1IDQoxMTozNDo0MiBDQVJEKDgyMzIxNyoqKioqKjgzNTkpIFRBS0VODQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDExOjM0OjQwDQo4Li44MzU5DQpSRVBMRU5JU0hNRU5UIDAwDQoyNTEwMTcvNjE4MjQxMTk1MjAzICAgICAgICswLjAwIFVBSA0KMTE6MzQ6NDMgR08gT1VUIE9GIFNFUlZJQ0UgQ09NTUFORA0KMTE6MzQ6NDkgPC0gVFJBTlNBQ1RJT04gRU5EDQoxMTozNjozMSBTRVJWSUNFTU9ERSBFTlRFUkVEDQpANSBEZXRhaWwgQ291bnRlcnMNCg0KQ1BJMjANCuwuIM7k5fHgLCDv8C4g2OXi9+Xt6uAsIDEx4A0KwcDNys7MwNI6IEExNTAwMDA1Ng0KMDEuMDcuMjAyNiDx8CAgMTE6MzY6MzcNCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQrK4PHl8uAgMTogVUFIIDEwMA0KyuDx5fLzIOHr7uru4uDt7g0Kx8DCwM3SwMbFzc46ICAgNTAwINHTzMA6IDUwMDAwIFVBSA0Kx8DLLsIgysDRxdKyOiAgNDgyINHTzMA6IDQ4MjAwIFVBSA0KwrLEwdDAys7CwM3OOiAgIDE4INHTzMA6ICAxODAwIFVBSA0Kx8DLyNjIy87R3DogICAgNTAwINHTzMA6IDUwMDAwIFVBSA0KwsjEwM3OOiAgICAgICAgICAwINHTzMA6ICAgICAwIFVBSA0Kx8DB09LOOiAgICAgICAgICAwDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KyuDx5fLgIDI6IFVBSCAyMDAgDQrK4PHl8uAg4iDw7uHu8rMNCsfAwsDN0sDGxc3OOiAgMTUwMCDR08zAOjMwMDAwMCBVQUgNCsfAyy7CIMrA0cXSsjogMTQ5MSDR08zAOjI5ODIwMCBVQUgNCsKyxMHQwMrOwsDNzjogICAgOSDR08zAOiAgMTgwMCBVQUgNCsfAy8jYyMvO0dw6ICAgMTUwMCDR08zAOjMwMDAwMCBVQUgNCsLIxMDNzjogICAgICAgICAgMCDR08zAOiAgICAgMCBVQUgNCsfAwdPSzjogICAgICAgICAgMA0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCsrg8eXy4CAzOiBVQUggNTAwDQrK4PHl8uAg4iDw7uHu8rMNCsfAwsDN0sDGxc3OOiAgMjEwMCDR08zAOjEwNTAwMDAgVUFIDQrHwMsuwiDKwNHF0rI6IDIwOTEg0dPMwDoxMDQ1NTAwIFVBSA0KwrLEwdDAys7CwM3OOiAgICA5INHTzMA6ICA0NTAwIFVBSA0Kx8DLyNjIy87R3DogICAyMTAwINHTzMA6MTA1MDAwMCBVQUgNCsLIxMDNzjogICAgICAgICAgMCDR08zAOiAgICAgMCBVQUgNCsfAwdPSzjogICAgICAgICAgMA0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCsrg8eXy4CA0OiBVQUggMTAwMA0KyuDx5fLgIOIg8O7h7vKzDQrHwMLAzdLAxsXNzjogIDIzMDAg0dPMwDoyMzAwMDAwIFVBSA0Kx8DLLsIgysDRxdKyOiAyMjkxINHTzMA6MjI5MTAwMCBVQUgNCsKyxMHQwMrOwsDNzjogICAgOSDR08zAOiAgOTAwMCBVQUgNCsfAy8jYyMvO0dw6ICAgMjMwMCDR08zAOjIzMDAwMDAgVUFIDQrCyMTAzc46ICAgICAgICAgIDAg0dPMwDogICAgIDAgVUFIDQrHwMHT0s46ICAgICAgICAgIDANCj09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQrHwMPAy9zNwCDR08zAIMIgwcDNys7MwNKyOg0KMzcwMDAwMCBVQUggDQrCssTB0MDKzsLAzc4gwtHczsPOOiA0NQ0Kx8DS0MjMwM3I1SDKwNDSzso6IDANCg0Kx8DB08LAzdw6IDANCrPt6uDx7uLg7e4gMDEuMDcuMjAyNiAgMTE6MjINCg0Kz7LEz8jRDQogICAgICAgIC0tLS0tLS0tLS0NCiAgICAgICAgICAgINfFyiAxLzENCg0KMTE6MzY6NTIgU0FGRSBET09SIE9QRU5FRA0KMTE6NDA6NDQgVEhJUkQgQ0FTU0VUVEUgUkVNT1ZFRA0KMTE6NDA6NDQgQk9UVE9NIENBU1NFVFRFIFJFTU9WRUQNCjExOjQwOjQ2IFJFSkVDVCBDQVNTRVRURSBSRU1PVkVEDQoxMTo0MDo0NiBUT1AgQ0FTU0VUVEUgUkVNT1ZFRA0KMTE6NDA6NDYgU0VDT05EIENBU1NFVFRFIFJFTU9WRUQNCjExOjQxOjU4IFNBRkUgRE9PUiBDTE9TRUQNCjEyOjEwOjQ0IENBU0ggQ09VTlRFUlMgQkVGT1JFIFNPUA0KICAgVUFIICAgICAgMTAwICA0ODIqDQogICBVQUggICAgICAyMDAgMTQ5MQ0KICAgVUFIICAgICAgNTAwIDIwOTENCiAgIFVBSCAgICAgMTAwMCAyMjkxDQogICBSRVRSQUNUUzogICAgMA0KICAgUkVKRUNUUzogICAgNDUNCjEyOjEwOjQ0IENBU0ggQ09VTlRFUlMgQUZURVIgU09QDQogICBVQUggICAgICAxMDAgICAgMCoNCiAgIFVBSCAgICAgIDIwMCAgICAwKg0KICAgVUFIICAgICAgNTAwICAgIDAqDQogICBVQUggICAgIDEwMDAgICAgMCoNCiAgIFJFVFJBQ1RTOiAgICAwDQogICBSRUpFQ1RTOiAgICAgMA0KMTI6MTA6NDUgU0VSVklDRU1PREUgTEVGVA0KMTI6MTA6NDUgR08gT1VUIE9GIFNFUlZJQ0UgQ09NTUFORA0KMTI6MTA6NDcgR08gSU4gU0VSVklDRSBDT01NQU5EDQoxMjoyMzo0MiAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTI6MjM6NDIgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio1MTkzDQoxMjoyNDowNCBQSU4gRU5URVJFRA0KMTI6MjQ6MDkgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTI6MjQ6MTAgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTI6MjQ6MTAgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTI6MjQ6MTENCjUuLjUxOTMNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQoyOTg2OTgvNjE4MjQxMjAwMDc4ICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxMjoyNDoyNSBBTU9VTlQgNTUwMDAwIEVOVEVSRUQNCjEyOjI0OjI3IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEICBESEENCjEyOjI0OjI4IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTI6MjQ6MjggVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxMjoyNDoyOSBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTI6MjQ6MzIgQ0FSRCg1MTY3ODAqKioqKio1MTkzKSBUQUtFTg0KMTI6MjQ6MzQgPC0gVFJBTlNBQ1RJT04gRU5EDQoxMjoyNjowNiAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTI6MjY6MDYgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio1OTkwDQoxMjoyNjoyMyBQSU4gRU5URVJFRA0KMTI6MjY6MjggVFJBTlNBQ1RJT04gUkVRVUVTVCBCQUMgICAgQQ0KMTI6MjY6MzAgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMjAgRlVOQ1RJT04gRDA3Mg0KMTI6MjY6MzAgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTI6MjY6MzANCjUuLjU5OTANCkJBTEFOQ0VfSU5RIDAwDQoyNDg4OTUvNjE4MjQxMjAwMzEwICAgICAgICswLjAwIFVBSA0KMTI6Mjc6MDQgUElOIEVOVEVSRUQNCjEyOjI3OjA4IFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjEyOjI3OjEwIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjEyOjI3OjExIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDEyOjI3OjEwDQo1Li41OTkwDQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KMjQ4ODk2LzYxODI0MDIwMDM2OCAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTI6Mjc6MjYgQU1PVU5UIDU5OTAwMCBFTlRFUkVEDQoxMjoyNzoyOSBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyAgREhBDQoxMjoyNzozMCBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjEyOjI3OjMwIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTI6Mjc6MzAgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjEyOjI3OjM1IENBUkQoNTE2NzgwKioqKioqNTk5MCkgVEFLRU4NCjEyOjI3OjM1IDwtIFRSQU5TQUNUSU9OIEVORA0KMTI6Mjg6MTEgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjEyOjI4OjExIFRSQUNLIDIgREFUQTogNTE2NzgwKioqKioqNTk5MA0KMTI6Mjg6MjkgUElOIEVOVEVSRUQNCjEyOjI4OjMzIFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjEyOjI4OjM0IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjEyOjI4OjM1IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDEyOjI4OjM1DQo1Li41OTkwDQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KMjQ4ODk3LzYxODI0MDIwMDQ5NyAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTI6Mjg6NTEgQU1PVU5UIDU0MDAwMCBFTlRFUkVEDQoxMjoyODo1NCBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyAgREhBDQoxMjoyODo1NSBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjEyOjI4OjU1IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTI6Mjg6NTYgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjEyOjI5OjAwIENBUkQoNTE2NzgwKioqKioqNTk5MCkgVEFLRU4NCjEyOjI5OjAxIDwtIFRSQU5TQUNUSU9OIEVORA0KMTI6Mjk6MTUgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjEyOjI5OjE1IFRSQUNLIDIgREFUQTogNTE2NzgwKioqKioqNTk5MA0KMTI6Mjk6MjkgUElOIEVOVEVSRUQNCjEyOjI5OjM0IFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjEyOjI5OjM1IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjEyOjI5OjM1IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDEyOjI5OjM2DQo1Li41OTkwDQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KMjQ4ODk4LzYxODI0MDIwMDYwMyAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTI6Mjk6NDUgQU1PVU5UIDUzMDAwMCBFTlRFUkVEDQoxMjoyOTo0NyBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyAgREhBDQoxMjoyOTo0OCBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjEyOjI5OjQ4IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTI6Mjk6NDggVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjEyOjI5OjUyIENBUkQoNTE2NzgwKioqKioqNTk5MCkgVEFLRU4NCjEyOjI5OjUzIDwtIFRSQU5TQUNUSU9OIEVORA0KMTI6NDE6MzAgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjEyOjQxOjMwIFRSQUNLIDIgREFUQTogNTE2NzQ5KioqKioqNDgyNg0KMTI6NDE6NDAgUElOIEVOVEVSRUQNCjEyOjQxOjQ5IFRSQU5TQUNUSU9OIFJFUVVFU1QgQyBEICAgIEENCjEyOjQxOjUwIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzEwIEZVTkNUSU9OIEQwMzUNCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTI6NDE6NTENCjUuLjQ4MjYNCk1JTklfU1RBVEVNRU5UIDAwDQozNTY0MjcvNjE4MjQxMjAxNzY0ICAgICAgICswLjAwIFVBSA0KMTI6NDE6NTYgQ0FSRCg1MTY3NDkqKioqKio0ODI2KSBUQUtFTg0KMTI6NDE6NTkgPC0gVFJBTlNBQ1RJT04gRU5EDQoxMjo0MjoxMSAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTI6NDI6MTEgVFJBQ0sgMiBEQVRBOiA1MTY3NDkqKioqKiozMDkyDQoxMjo0MjoxOSBQSU4gRU5URVJFRA0KMTI6NDI6MjEgVFJBTlNBQ1RJT04gUkVRVUVTVCBDIEQgICAgQQ0KMTI6NDI6MjIgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzNzUgRlVOQ1RJT04gWh1IDQoxMjo0MjoyNSBDQVJEKDUxNjc0OSoqKioqKjMwOTIpIFRBS0VODQoxMjo0MjoyNyA8LSBUUkFOU0FDVElPTiBFTkQNCjEyOjQyOjM1IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxMjo0MjozNSBUUkFDSyAyIERBVEE6IDUxNjg3NSoqKioqKjM1OTENCjEyOjQyOjQyIFBJTiBFTlRFUkVEDQoxMjo0Mjo0NiBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCBEICBBDQoxMjo0Mjo0NiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjEyOjQyOjQ4IENBUkQoNTE2ODc1KioqKioqMzU5MSkgVEFLRU4NCjEyOjQyOjUyIDwtIFRSQU5TQUNUSU9OIEVORA0KMTI6NDI6NTQgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjEyOjQyOjU0IFRSQUNLIDIgREFUQTogNDE0OTQ5KioqKioqNjUyMw0KMTI6NDM6MDIgUElOIEVOVEVSRUQNCjEyOjQzOjA0IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEIEQgIEENCjEyOjQzOjA1IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTI6NDM6MDcgQ0FSRCg0MTQ5NDkqKioqKio2NTIzKSBUQUtFTg0KMTI6NDM6MTAgPC0gVFJBTlNBQ1RJT04gRU5EDQoxMjo0MzoxNCAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTI6NDM6MTUgVFJBQ0sgMiBEQVRBOiA0MTQ5NDkqKioqKio2MDY2DQoxMjo0MzoyNCBQSU4gRU5URVJFRA0KMTI6NDM6MjggVFJBTlNBQ1RJT04gUkVRVUVTVCBCIEQgRCAgQQ0KMTI6NDM6MjkgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzNTQgRlVOQ1RJT04gWh1IDQoxMjo0MzozMSBDQVJEKDQxNDk0OSoqKioqKjYwNjYpIFRBS0VODQoxMjo0MzozNCA8LSBUUkFOU0FDVElPTiBFTkQNCjEyOjQzOjM4IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxMjo0MzozOCBUUkFDSyAyIERBVEE6IDQxNDk0OSoqKioqKjIwODkNCjEyOjQzOjQ0IFBJTiBFTlRFUkVEDQoxMjo0Mzo0NyBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCBEICBBDQoxMjo0Mzo0NyBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjEyOjQzOjQ5IENBUkQoNDE0OTQ5KioqKioqMjA4OSkgVEFLRU4NCjEyOjQzOjUzIDwtIFRSQU5TQUNUSU9OIEVORA0KMTI6NDM6NTYgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjEyOjQzOjU2IFRSQUNLIDIgREFUQTogNTE2NzQ5KioqKioqMjE0MA0KMTI6NDQ6MDMgUElOIEVOVEVSRUQNCjEyOjQ0OjA1IFRSQU5TQUNUSU9OIFJFUVVFU1QgQyBEICAgIEENCjEyOjQ0OjA2IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzE0IEZVTkNUSU9OIFodSA0KMTI6NDQ6MDkgQ0FSRCg1MTY3NDkqKioqKioyMTQwKSBUQUtFTg0KMTI6NDQ6MTEgPC0gVFJBTlNBQ1RJT04gRU5EDQoxMjo0NToxNyAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTI6NDU6MTcgW0FUTV9WQV0gU2VsZWN0ZWQgbGFuZ3VhZ2UgOiBlbl9VUw0KMTI6NDU6MjQgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio3MDMyDQoxMjo0NTo0NCBQSU4gRU5URVJFRA0KMTI6NDU6NTUgW0FUTV9WQV0gLT4gU3RhcnQgdHJhbnNhY3Rpb24gQ0FTSF9PVVRfQ1VSUkVOVA0KMTI6NDY6MjggQU1PVU5UIDMwMDAwMCBFTlRFUkVEDQoxMjo0Njo0NSBbQVRNX1ZBXSAtPiBTdGFydCB0cmFuc2FjdGlvbiBDQVNIX09VVF9DVVJSRU5UX1JFQ0VJUFQNCjEyOjQ2OjUwIFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFDICBEIEENCjEyOjQ2OjUwIFtBVE1fVkFdIFJlY2VpdmVkIE5leHQgU3RhdGUgTnVtYmVyIDM5NiByZXBsYWNlZCBieSBWQV8zOTYNCjEyOjQ2OjUwIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgVkFfMzk2IEZVTkNUSU9OIFodSA0KMTI6NDY6NTEgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxMjo0Njo1MSBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTI6NDY6NTUgQ0FSRCg1MTY3ODAqKioqKio3MDMyKSBUQUtFTg0KMTI6NDY6NTcgPC0gVFJBTlNBQ1RJT04gRU5EDQoxMjo0ODo0NiAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTI6NDg6NDYgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio3MDMyDQoxMjo0OTowOSBQSU4gRU5URVJFRA0KMTI6NDk6MTQgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTI6NDk6MTUgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTI6NDk6MTUgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTI6NDk6MTYNCjUuLjcwMzINCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQo1NzEyMDkvNjE4MjQwMjAyNDM2ICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxMjo0OToyNSBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyAgSUhBDQoxMjo0OToyNiBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjEyOjQ5OjI2IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTI6NDk6MjYgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjEyOjQ5OjMzIENBUkQoNTE2NzgwKioqKioqNzAzMikgVEFLRU4NCjEyOjQ5OjMzIDwtIFRSQU5TQUNUSU9OIEVORA0KMTI6NDk6NTQgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjEyOjQ5OjU0IFRSQUNLIDIgREFUQTogNTE2NzgwKioqKioqMDg1MQ0KMTI6NTA6MDcgUElOIEVOVEVSRUQNCjEyOjUwOjEyIFRSQU5TQUNUSU9OIFJFUVVFU1QgQkFEICAgIEENCjEyOjUwOjE0IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzEwIEZVTkNUSU9OIEQwMzUNCjEyOjUwOjE0IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDEyOjUwOjE0DQo1Li4wODUxDQpCQUxBTkNFX0lOUSAwMA0KNDc2MDU2LzYxODI0MTIwMjUxNyAgICAgICArMC4wMCBVQUgNCjEyOjUwOjI1IFBJTiBFTlRFUkVEDQoxMjo1MDoyOCBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoxMjo1MDozMCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoxMjo1MDozMCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxMjo1MDozMA0KNS4uMDg1MQ0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjQ3NjA1Ny82MTgyNDAyMDI1NDEgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjEyOjUwOjQwIEFNT1VOVCAxMzAwMDAgRU5URVJFRA0KMTI6NTA6NDIgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUMgIERIQQ0KMTI6NTA6NDMgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxMjo1MDo0MyBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjEyOjUwOjQzIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxMjo1MDo0NyBDQVJEKDUxNjc4MCoqKioqKjA4NTEpIFRBS0VODQoxMjo1MDo0OSA8LSBUUkFOU0FDVElPTiBFTkQNCjEyOjUzOjI4IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxMjo1MzozMSBUUkFDSyAyIERBVEE6IA0KMTI6NTM6NDYgUElOIEVOVEVSRUQNCjEyOjUzOjU2IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEIERGIEENCjEyOjUzOjU3IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTI6NTM6NTcgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxMjo1Mzo1NyBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTI6NTQ6MDQgQ0FSRCgpIFRBS0VODQoxMjo1NDowNCA8LSBUUkFOU0FDVElPTiBFTkQNCjEyOjU0OjA5IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxMjo1NDoxMCBUUkFDSyAyIERBVEE6IA0KMTI6NTQ6MjQgUElOIEVOVEVSRUQNCjEyOjU0OjMyIFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEIERHIEENCjEyOjU0OjM0IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTI6NTQ6MzQgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxMjo1NDozNSBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTI6NTQ6MzcgQ0FSRCgpIFRBS0VODQoxMjo1NDo0MCA8LSBUUkFOU0FDVElPTiBFTkQNCjEzOjAxOjUxIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxMzowMTo1MSBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjA3MDMNCjEzOjAyOjExIFBJTiBFTlRFUkVEDQoxMzowMjoxNiBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoxMzowMjoxNyBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoxMzowMjoxNyBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxMzowMjoxOA0KNS4uMDcwMw0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjg3NDQ1MC82MTgyNDEyMDM1NzQgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjEzOjAyOjI1IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFDICBJSEENCjEzOjAyOjI2IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTM6MDI6MjYgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxMzowMjoyNiBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTM6MDI6MzIgQ0FSRCg1MTY3ODAqKioqKiowNzAzKSBUQUtFTg0KMTM6MDI6MzIgPC0gVFJBTlNBQ1RJT04gRU5EDQoxMzowNzowNSAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTM6MDc6MDUgVFJBQ0sgMiBEQVRBOiA0NDgzODIqKioqKio2OTM2DQoxMzowNzoxOCBQSU4gRU5URVJFRA0KMTM6MDc6MjIgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTM6MDc6MjQgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTM6MDc6MjQgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTM6MDc6MjUNCjQuLjY5MzYNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQo0ODk1NDgvNjE4MjQxMjA0MDU3ICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxMzowNzozMyBBTU9VTlQgNzAwMDAwIEVOVEVSRUQNCjEzOjA3OjM1IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEICBESEENCjEzOjA3OjM2IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTM6MDc6MzYgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxMzowNzozNiBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTM6MDc6MzkgQ0FSRCg0NDgzODIqKioqKio2OTM2KSBUQUtFTg0KMTM6MDc6NDEgPC0gVFJBTlNBQ1RJT04gRU5EDQoxMzoxODo1OCAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTM6MTg6NTggVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio4NTY0DQoxMzoxOToxMyBQSU4gRU5URVJFRA0KMTM6MTk6MTcgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTM6MTk6MTggVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTM6MTk6MTkgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTM6MTk6MTkNCjUuLjg1NjQNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQo4MDc4NTIvNjE4MjQxMjA1MTczICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxMzoxOToyNCBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyAgQkhBDQoxMzoxOToyNSBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjEzOjE5OjI1IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTM6MTk6MjYgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjEzOjE5OjMwIENBUkQoNTE2NzgwKioqKioqODU2NCkgVEFLRU4NCjEzOjE5OjMxIDwtIFRSQU5TQUNUSU9OIEVORA0KMTM6MTk6NDQgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjEzOjE5OjQ0IFRSQUNLIDIgREFUQTogNTE2NzgwKioqKioqODkxMg0KMTM6MjA6MDQgUElOIEVOVEVSRUQNCjEzOjIwOjA3IFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjEzOjIwOjA4IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjEzOjIwOjA5IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDEzOjIwOjA5DQo1Li44OTEyDQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KOTkyNzU4LzYxODI0MDIwNTI0NyAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTM6MjA6MTQgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUMgIEhIQQ0KMTM6MjA6MTYgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxMzoyMDoxNiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjEzOjIwOjE2IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxMzoyMDoxOSBDQVJEKDUxNjc4MCoqKioqKjg5MTIpIFRBS0VODQoxMzoyMDoyMSA8LSBUUkFOU0FDVElPTiBFTkQNCjEzOjIwOjQ1IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxMzoyMTozNyA8LSBUUkFOU0FDVElPTiBFTkQNCjEzOjIxOjU0IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxMzoyMTo1NCBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjg5MTINCjEzOjIyOjExIFBJTiBFTlRFUkVEDQoxMzoyMjoxNSBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoxMzoyMjoxNiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoxMzoyMjoxNiBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxMzoyMjoxNw0KNS4uODkxMg0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjk5Mjc1OS82MTgyNDEyMDU0MjYgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjEzOjIyOjIyIFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFDICBISEENCjEzOjIyOjIzIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTM6MjI6MjMgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxMzoyMjoyNCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTM6MjI6MzIgQ0FSRCg1MTY3ODAqKioqKio4OTEyKSBUQUtFTg0KMTM6MjI6MzIgPC0gVFJBTlNBQ1RJT04gRU5EDQoxMzoyMjo0NyAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTM6MjI6NDcgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio4NTY0DQoxMzoyMzowMCBQSU4gRU5URVJFRA0KMTM6MjM6MDUgVFJBTlNBQ1RJT04gUkVRVUVTVCBCQUQgICAgQQ0KMTM6MjM6MDcgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMTAgRlVOQ1RJT04gRDAzNQ0KMTM6MjM6MDcgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTM6MjM6MDgNCjUuLjg1NjQNCkJBTEFOQ0VfSU5RIDAwDQo4MDc4NTMvNjE4MjQwMjA1NTAxICAgICAgICswLjAwIFVBSA0KMTM6MjM6MTggUElOIEVOVEVSRUQNCjEzOjIzOjIyIFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjEzOjIzOjIzIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjEzOjIzOjI0IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDEzOjIzOjI0DQo1Li44NTY0DQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KODA3ODU0LzYxODI0MTIwNTUyMSAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTM6MjM6MzUgQU1PVU5UIDkwMDAwMCBFTlRFUkVEDQoxMzoyMzozNyBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyAgREhBDQoxMzoyMzozOCBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjEzOjIzOjM4IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTM6MjM6MzggVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjEzOjIzOjQyIENBUkQoNTE2NzgwKioqKioqODU2NCkgVEFLRU4NCjEzOjIzOjQzIDwtIFRSQU5TQUNUSU9OIEVORA0KMTU6MzU6MTQgW0FUTVhdPEVWRU5UPiBQUk9UT1BBUyBJUyBQUk9URUNURUQgQlkgQVRNU0VDVVJJWA0KMTU6MzU6MTQgW0FUTVhdPEVWRU5UPiBBR0VOVCBJUyBSVU5OSU5HIChQUk9EVUNUIFZFUlNJT04gMi4xLjUuMTE4OSkNCjE1OjM1OjM5IFtBVE1YXTxFVkVOVD4gQVRNU0VDVVJJWCBKT1VSTkFMIEZSQU1FV09SSyBMQVNUIElETEUgUEVSSU9EDQoxNTozNTozOSAJV0FTIEZST00gMjAyNi0wNy0wMSAxMzoyNDoyNyBUSUxMIDIwMjYtMDctMDEgMTU6MzU6MzgNCjE1OjM1OjM5IAlSRUFTT04gOiBTSFVURE9XTg0KMTU6MzU6NDEgW0FUTVhdPEVWRU5UPiBBVE1TRUNVUklYIEFHRU5UIExBU1QgSURMRSBQRVJJT0QgV0FTDQoxNTozNTo0MSAJRlJPTSAyMDI2LTA3LTAxIDEzOjI0OjEyIFRJTEwgMjAyNi0wNy0wMSAxNTozNDozOA0KMTU6MzU6NDEgCVJFQVNPTiA6IElMTEVHQUwgU0hVVERPV04NCjE1OjM2OjA1IEFQUExJQ0FUSU9OIFNUQVJURUQNCjE1OjM2OjM3IFtBVE1fVkFdIEFwcGxpY2F0aW9uIHN0YXJ0ZWQuIFZlcnNpb24gMTMyMiAyNDExMTgNCjE1OjM2OjM3IFtBVE1fVkFdIExpY2Vuc2Uga2V5IGlzIGNvcnJlY3QuIFBlcmlvZCA6IFVOTElNSVRFRA0KMTU6MzY6NDkgT1BFUkFUT1IgRE9PUiBPUEVORUQNCjE1OjM2OjUwIENPTU1VTklDQVRJT04gT05MSU5FDQoxNTozNjo1MCBHTyBPVVQgT0YgU0VSVklDRSBDT01NQU5EDQoxNTozNjo1MiBHTyBPVVQgT0YgU0VSVklDRSBDT01NQU5EDQoxNTozNjo1NCBHTyBJTiBTRVJWSUNFIENPTU1BTkQNCjE2OjM2OjU2IEdPIElOIFNFUlZJQ0UgQ09NTUFORA0KMTY6NDc6MjQgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE2OjQ3OjI0IFRSQUNLIDIgREFUQTogNTE2NzgwKioqKioqNTIyMg0KMTY6NDc6MzkgUElOIEVOVEVSRUQNCjE2OjQ3OjQzIFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjE2OjQ3OjQ1IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjE2OjQ3OjQ1IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDE2OjQ3OjQ1DQo1Li41MjIyDQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KNTMwMjc0LzYxODI0MDIxODgzNCAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTY6NDc6NTUgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgIENIQQ0KMTY6NDc6NTUgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxNjo0Nzo1NiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE2OjQ3OjU2IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxNjo0Nzo1OSBDQVJEKDUxNjc4MCoqKioqKjUyMjIpIFRBS0VODQoxNjo0ODowMSA8LSBUUkFOU0FDVElPTiBFTkQNCjE2OjQ4OjA4IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxNjo0ODoxMCBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjUyMjINCjE2OjQ4OjI2IFBJTiBFTlRFUkVEDQoxNjo0ODozMCBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoxNjo0ODozMSBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoxNjo0ODozMSBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxNjo0ODozMg0KNS4uNTIyMg0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjUzMDI3NS82MTgyNDAyMTg4OTIgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjE2OjQ4OjQxIEFNT1VOVCAxNTAwMDAwIEVOVEVSRUQNCjE2OjQ4OjQzIFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEICBESEENCjE2OjQ4OjQ0IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTY6NDg6NDQgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxNjo0ODo0NCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTY6NDg6NDYgQ0FSRCg1MTY3ODAqKioqKio1MjIyKSBUQUtFTg0KMTY6NDg6NDkgPC0gVFJBTlNBQ1RJT04gRU5EDQoxNjo0OTowNCAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTY6NDk6MDQgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio1OTkwDQoxNjo0OToxNyBQSU4gRU5URVJFRA0KMTY6NDk6MjEgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTY6NDk6MjMgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTY6NDk6MjMgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTY6NDk6MjMNCjUuLjU5OTANCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQoyNDg4OTkvNjE4MjQxMjE4OTUzICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxNjo0OTozNiBBTU9VTlQgNTQwMDAwIEVOVEVSRUQNCjE2OjQ5OjQwIFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFDICBESEENCjE2OjQ5OjQxIEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTY6NDk6NDEgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxNjo0OTo0MiBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTY6NDk6NDYgQ0FSRCg1MTY3ODAqKioqKio1OTkwKSBUQUtFTg0KMTY6NDk6NDcgPC0gVFJBTlNBQ1RJT04gRU5EDQoxNjo1MDozNSAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTY6NTA6MzUgVFJBQ0sgMiBEQVRBOiA0MDI5NjEqKioqKio1MTE4DQoxNjo1MDo0OCBQSU4gRU5URVJFRA0KMTY6NTA6NTUgQU1PVU5UIDg2MDAwMCBFTlRFUkVEDQoxNjo1MTowMSBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCBERCBBDQoxNjo1MTowMiBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjE2OjUxOjAyIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTY6NTE6MDIgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjE2OjUxOjA1IENBUkQoNDAyOTYxKioqKioqNTExOCkgVEFLRU4NCjE2OjUxOjA3IDwtIFRSQU5TQUNUSU9OIEVORA0KMTY6NTE6MjAgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE2OjUxOjIwIFRSQUNLIDIgREFUQTogNDAyOTYxKioqKioqNTExOA0KMTY6NTE6MzUgQ0FSRCg0MDI5NjEqKioqKio1MTE4KSBUQUtFTg0KMTY6NTE6MzcgPC0gVFJBTlNBQ1RJT04gRU5EDQoxNjo1MTo0MiAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTY6NTE6NDIgVFJBQ0sgMiBEQVRBOiA0MDI5NjEqKioqKio1MTE4DQoxNjo1MTo1NSBQSU4gRU5URVJFRA0KMTY6NTI6MDEgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgRCAgQQ0KMTY6NTI6MDMgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxNjo1MjowMyBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE2OjUyOjAzIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxNjo1MjowNiBDQVJEKDQwMjk2MSoqKioqKjUxMTgpIFRBS0VODQoxNjo1MjowOCA8LSBUUkFOU0FDVElPTiBFTkQNCjE3OjExOjI4IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxNzoxMToyOCBUUkFDSyAyIERBVEE6IDQ4NzQwNyoqKioqKjU3MjgNCjE3OjExOjQ1IFBJTiBFTlRFUkVEDQoxNzoxMTo1MyBBTU9VTlQgNDAwMDAwIEVOVEVSRUQNCjE3OjExOjU1IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEIEREIEENCjE3OjExOjU2IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTc6MTE6NTYgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxNzoxMTo1NiBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTc6MTI6MDAgQ0FSRCg0ODc0MDcqKioqKio1NzI4KSBUQUtFTg0KMTc6MTI6MDEgPC0gVFJBTlNBQ1RJT04gRU5EDQoxNzoxMjoxMiAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTc6MTI6MTkgQ0FSRCgpIFRBS0VODQoxNzoxMjoyMSA8LSBUUkFOU0FDVElPTiBFTkQNCjE3OjEyOjMxIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxNzoxMjozNiBDQVJEKCkgVEFLRU4NCjE3OjEyOjM5IDwtIFRSQU5TQUNUSU9OIEVORA0KMTc6MTI6NDIgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE3OjEyOjQyIFRSQUNLIDIgREFUQTogNDg3NDA3KioqKioqNTcyOA0KMTc6MTI6NTYgUElOIEVOVEVSRUQNCjE3OjEzOjA2IEFNT1VOVCA0MDAwMDAgRU5URVJFRA0KMTc6MTM6MDcgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgREQgQQ0KMTc6MTM6MDggRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxNzoxMzowOCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE3OjEzOjA5IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxNzoxMzoxMiBDQVJEKDQ4NzQwNyoqKioqKjU3MjgpIFRBS0VODQoxNzoxMzoxNCA8LSBUUkFOU0FDVElPTiBFTkQNCjE3OjIxOjM1IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxNzoyMTo0MSBDQVJEKCkgVEFLRU4NCjE3OjIxOjQyIDwtIFRSQU5TQUNUSU9OIEVORA0KMTc6MjE6NDcgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE3OjIxOjQ3IFRSQUNLIDIgREFUQTogNTE2ODc0KioqKioqMjE4MQ0KMTc6MjI6MDEgUElOIEVOVEVSRUQNCjE3OjIyOjA5IEFNT1VOVCAzNzAwMDAgRU5URVJFRA0KMTc6MjI6MTEgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUMgREQgQQ0KMTc6MjI6MTIgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxNzoyMjoxMiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE3OjIyOjEyIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxNzoyMjoxNSBDQVJEKDUxNjg3NCoqKioqKjIxODEpIFRBS0VODQoxNzoyMjoxOCA8LSBUUkFOU0FDVElPTiBFTkQNCjE3OjIyOjM0IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxNzoyMjozNCBUUkFDSyAyIERBVEE6IDUxNjg3NCoqKioqKjIxODENCjE3OjIyOjUwIFBJTiBFTlRFUkVEDQoxNzoyMjo1OSBBTU9VTlQgMzYwMDAwIEVOVEVSRUQNCjE3OjIzOjAxIFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFDIEREIEENCjE3OjIzOjAyIEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTc6MjM6MDIgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxNzoyMzowMiBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTc6MjM6MDUgQ0FSRCg1MTY4NzQqKioqKioyMTgxKSBUQUtFTg0KMTc6MjM6MDggPC0gVFJBTlNBQ1RJT04gRU5EDQoxNzoyMzo0MyAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTc6MjM6NDMgVFJBQ0sgMiBEQVRBOiA0NDgzODIqKioqKio0ODIyDQoxNzoyNDowMiBQSU4gRU5URVJFRA0KMTc6MjQ6MDYgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTc6MjQ6MDcgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTc6MjQ6MDcgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTc6MjQ6MDgNCjQuLjQ4MjINCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQoxMDMzNTAvNjE4MjQwMjIxMjc2ICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxNzoyNDoxNCBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyAgQkhBDQoxNzoyNDoxNSBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjE3OjI0OjE1IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTc6MjQ6MTUgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjE3OjI0OjE4IENBUkQoNDQ4MzgyKioqKioqNDgyMikgVEFLRU4NCjE3OjI0OjIwIDwtIFRSQU5TQUNUSU9OIEVORA0KMTc6MzM6MzAgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE3OjMzOjMwIFRSQUNLIDIgREFUQTogNTE2NzgwKioqKioqMDQ4MA0KMTc6MzM6NTIgUElOIEVOVEVSRUQNCjE3OjMzOjU3IFRSQU5TQUNUSU9OIFJFUVVFU1QgQkFEICAgIEENCjE3OjMzOjU4IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzEwIEZVTkNUSU9OIEQwMzUNCjE3OjMzOjU4IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDE3OjMzOjU5DQo1Li4wNDgwDQpCQUxBTkNFX0lOUSAwMA0KNzU1ODQzLzYxODI0MDIyMTkyMiAgICAgICArMC4wMCBVQUgNCjE3OjM0OjExIFBJTiBFTlRFUkVEDQoxNzozNDoxNyBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoxNzozNDoxOCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoxNzozNDoxOCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxNzozNDoxOQ0KNS4uMDQ4MA0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjc1NTg0NC82MTgyNDEyMjE5NDMgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjE3OjM0OjI3IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEICBHSEENCjE3OjM0OjI4IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTc6MzQ6MjggVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxNzozNDoyOCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTc6MzQ6MzQgQ0FSRCg1MTY3ODAqKioqKiowNDgwKSBUQUtFTg0KMTc6MzQ6MzQgPC0gVFJBTlNBQ1RJT04gRU5EDQoxNzo0OTozNSAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTc6NDk6MzUgVFJBQ0sgMiBEQVRBOiA1MTY4MTIqKioqKioyOTI3DQoxNzo0OTo1OCBQSU4gRU5URVJFRA0KMTc6NTA6MDUgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUMgREMgQQ0KMTc6NTA6MDYgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxNzo1MDowNiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE3OjUwOjA3IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxNzo1MDoxMCBDQVJEKDUxNjgxMioqKioqKjI5MjcpIFRBS0VODQoxNzo1MDoxMiA8LSBUUkFOU0FDVElPTiBFTkQNCjE3OjUwOjE2IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxNzo1MDoxNiBUUkFDSyAyIERBVEE6IDUxNjgxMioqKioqKjI5MjcNCjE3OjUwOjI4IFBJTiBFTlRFUkVEDQoxNzo1MDozMyBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyBEQiBBDQoxNzo1MDozNCBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjE3OjUwOjM0IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTc6NTA6MzQgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjE3OjUwOjM3IENBUkQoNTE2ODEyKioqKioqMjkyNykgVEFLRU4NCjE3OjUwOjM5IDwtIFRSQU5TQUNUSU9OIEVORA0KMTc6NTA6NDUgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE3OjUwOjQ1IFRSQUNLIDIgREFUQTogNTE2ODEyKioqKioqMjkyNw0KMTc6NTE6MDAgUElOIEVOVEVSRUQNCjE3OjUxOjA1IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFDIEQgIEENCjE3OjUxOjA2IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTc6NTE6MDYgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxNzo1MTowNiBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTc6NTE6MDkgQ0FSRCg1MTY4MTIqKioqKioyOTI3KSBUQUtFTg0KMTc6NTE6MTEgPC0gVFJBTlNBQ1RJT04gRU5EDQoxNzo1NDoxNiAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTc6NTQ6MTYgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKiozNzU0DQoxNzo1NDozNiBQSU4gRU5URVJFRA0KMTc6NTQ6NDAgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTc6NTQ6NDIgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTc6NTQ6NDIgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTc6NTQ6NDINCjUuLjM3NTQNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQozOTI4ODcvNjE4MjQxMjIzMTM1ICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxNzo1NDo0OSBBTU9VTlQgODAwMDAgRU5URVJFRA0KMTc6NTQ6NTEgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgIERIQQ0KMTc6NTQ6NTMgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxNzo1NDo1MyBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE3OjU0OjUzIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxNzo1NDo1NyBDQVJEKDUxNjc4MCoqKioqKjM3NTQpIFRBS0VODQoxNzo1NDo1OSA8LSBUUkFOU0FDVElPTiBFTkQNCjE3OjU1OjAzIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxNzo1NTowMyBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjM3NTQNCjE3OjU1OjI2IENBUkQoNTE2NzgwKioqKioqMzc1NCkgVEFLRU4NCjE3OjU1OjI3IDwtIFRSQU5TQUNUSU9OIEVORA0KMTc6NTU6MzAgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE3OjU1OjMwIFRSQUNLIDIgREFUQTogNTE2NzgwKioqKioqMzc1NA0KMTc6NTU6NTAgUElOIEVOVEVSRUQNCjE3OjU1OjU0IFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjE3OjU1OjU1IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjE3OjU1OjU1IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDE3OjU1OjU2DQo1Li4zNzU0DQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KMzkyODg4LzYxODI0MDIyMzE4OCAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTc6NTY6MDIgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgIEhIQQ0KMTc6NTY6MDQgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxNzo1NjowNCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE3OjU2OjA0IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxNzo1NjowNyBDQVJEKDUxNjc4MCoqKioqKjM3NTQpIFRBS0VODQoxNzo1NjowOSA8LSBUUkFOU0FDVElPTiBFTkQNCjE4OjE3OjQyIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxODoxNzo0MiBUUkFDSyAyIERBVEE6IDQ3OTA3MioqKioqKjc2MzkNCjE4OjE3OjU2IFBJTiBFTlRFUkVEDQoxODoxNzo1OSBUUkFOU0FDVElPTiBSRVFVRVNUIEJBRCAgICBBDQoxODoxODowMCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDMxMCBGVU5DVElPTiBEMDM1DQoxODoxODowMCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxODoxODowMQ0KNC4uNzYzOQ0KQkFMQU5DRV9JTlEgMDANCjU1OTU0NC82MTgyNDEyMjQzMDEgICAgICAgKzAuMDAgVUFIDQoxODoxODowOSBQSU4gRU5URVJFRA0KMTg6MTg6MTMgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTg6MTg6MTQgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTg6MTg6MTQgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTg6MTg6MTUNCjQuLjc2MzkNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQo1NTk1NDUvNjE4MjQwMjI0MzExICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxODoxODoyMCBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCAgQkhBDQoxODoxODoyMSBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjE4OjE4OjIxIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTg6MTg6MjEgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjE4OjE4OjI0IENBUkQoNDc5MDcyKioqKioqNzYzOSkgVEFLRU4NCjE4OjE4OjI2IDwtIFRSQU5TQUNUSU9OIEVORA0KMTg6MTg6MzMgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE4OjE4OjMzIFRSQUNLIDIgREFUQTogNDc5MDcyKioqKioqNzYzOQ0KMTg6MTg6NDUgUElOIEVOVEVSRUQNCjE4OjE4OjQ4IFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjE4OjE4OjQ5IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjE4OjE4OjUwIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDE4OjE4OjUwDQo0Li43NjM5DQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KNTU5NTQ2LzYxODI0MTIyNDMzMyAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTg6MTg6NTUgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgIEFIQQ0KMTg6MTg6NTYgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxODoxODo1NiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE4OjE4OjU3IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxODoxODo1OSBDQVJEKDQ3OTA3MioqKioqKjc2MzkpIFRBS0VODQoxODoxOTowMiA8LSBUUkFOU0FDVElPTiBFTkQNCjE4OjIzOjQ2IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxODoyMzo1MSBDQVJEKCkgVEFLRU4NCjE4OjIzOjUzIDwtIFRSQU5TQUNUSU9OIEVORA0KMTg6MjM6NTcgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE4OjIzOjU3IFRSQUNLIDIgREFUQTogNTE2NzgwKioqKioqMTcyOA0KMTg6MjQ6MTYgUElOIEVOVEVSRUQNCjE4OjI0OjIwIFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjE4OjI0OjIxIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjE4OjI0OjIyIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDE4OjI0OjIyDQo1Li4xNzI4DQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KNTc2NDMzLzYxODI0MTIyNDU4NSAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTg6MjQ6NDIgQU1PVU5UIDEzMDAwMDAgRU5URVJFRA0KMTg6MjQ6NDUgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgIERIQQ0KMTg6MjQ6NDYgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxODoyNDo0NiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE4OjI0OjQ2IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxODoyNDo0OSBDQVJEKDUxNjc4MCoqKioqKjE3MjgpIFRBS0VODQoxODoyNDo1MSA8LSBUUkFOU0FDVElPTiBFTkQNCjE4OjI0OjU2IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxODoyNDo1NiBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjE3MjgNCjE4OjI1OjA5IFBJTiBFTlRFUkVEDQoxODoyNToyMyBUUkFOU0FDVElPTiBSRVFVRVNUIEJBRCAgICBBDQoxODoyNToyNCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDMxMCBGVU5DVElPTiBEMDM1DQoxODoyNToyNCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxODoyNToyNQ0KNS4uMTcyOA0KQkFMQU5DRV9JTlEgMDANCjU3NjQzNC82MTgyNDEyMjQ2MzEgICAgICAgKzAuMDAgVUFIDQoxODoyNTozNSBQSU4gRU5URVJFRA0KMTg6MjU6NDEgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTg6MjU6NDIgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTg6MjU6NDMgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTg6MjU6NDMNCjUuLjE3MjgNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQo1NzY0MzUvNjE4MjQwMjI0NjQzICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxODoyNTo1MiBBTU9VTlQgMTIyMDAwMCBFTlRFUkVEDQoxODoyNTo1NSBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCAgREhBDQoxODoyNTo1NiBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjE4OjI1OjU2IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTg6MjU6NTYgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjE4OjI2OjAzIENBUkQoNTE2NzgwKioqKioqMTcyOCkgVEFLRU4NCjE4OjI2OjAzIDwtIFRSQU5TQUNUSU9OIEVORA0KMTg6MjY6MzAgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE4OjI2OjM1IENBUkQoKSBUQUtFTg0KMTg6MjY6MzkgPC0gVFJBTlNBQ1RJT04gRU5EDQoxODoyNjo0MyAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTg6MjY6NDMgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKioxNzI4DQoxODoyNjo1OCBQSU4gRU5URVJFRA0KMTg6Mjc6MDIgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTg6Mjc6MDMgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTg6Mjc6MDMgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTg6Mjc6MDQNCjUuLjE3MjgNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQo1NzY0MzYvNjE4MjQxMjI0NzEzICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxODoyNzoxNCBBTU9VTlQgMTIwMDAwMCBFTlRFUkVEDQoxODoyNzoxNiBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCAgREhBDQoxODoyNzoxNyBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjE4OjI3OjE3IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTg6Mjc6MTcgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjE4OjI3OjIwIENBUkQoNTE2NzgwKioqKioqMTcyOCkgVEFLRU4NCjE4OjI3OjIyIDwtIFRSQU5TQUNUSU9OIEVORA0KMTg6MzY6MzIgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE4OjM2OjMyIFRSQUNLIDIgREFUQTogNDQ4MzgyKioqKioqMjI5NA0KMTg6MzY6NTMgUElOIEVOVEVSRUQNCjE4OjM2OjU4IFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjE4OjM2OjU5IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjE4OjM3OjAwIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2NDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDE4OjM3OjAwDQo0Li4yMjk0DQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KNzc3NDY0LzYxODI0MTIyNTE4NSAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTg6Mzc6MTEgQU1PVU5UIDUzMDAwMCBFTlRFUkVEDQoxODozNzoxNCBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyAgREhBDQoxODozNzoxNSBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjE4OjM3OjE1IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTg6Mzc6MTUgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjE4OjM3OjE5IENBUkQoNDQ4MzgyKioqKioqMjI5NCkgVEFLRU4NCjE4OjM3OjIwIDwtIFRSQU5TQUNUSU9OIEVORA0KMTg6Mzc6MjUgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE4OjM3OjI1IFRSQUNLIDIgREFUQTogNDQ4MzgyKioqKioqMjI5NA0KMTg6Mzc6NDEgUElOIEVOVEVSRUQNCjE4OjM3OjQ0IFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjE4OjM3OjQ1IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjE4OjM3OjQ2IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDE4OjM3OjQ2DQo0Li4yMjk0DQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KNzc3NDY1LzYxODI0MDIyNTIyNCAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTg6Mzc6NTUgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUMgIEFIQQ0KMTg6Mzc6NTYgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxODozNzo1NiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE4OjM3OjU2IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxODozODowMCBDQVJEKDQ0ODM4MioqKioqKjIyOTQpIFRBS0VODQoxODozODowMSA8LSBUUkFOU0FDVElPTiBFTkQNCjE4OjM4OjMwIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxODozODozMCBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjE2ODINCjE4OjM4OjQ4IFBJTiBFTlRFUkVEDQoxODozODo1NyBUUkFOU0FDVElPTiBSRVFVRVNUIEJBRCAgICBBDQoxODozODo1OCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDMxMCBGVU5DVElPTiBEMDM1DQoxODozODo1OCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxODozODo1OQ0KNS4uMTY4Mg0KQkFMQU5DRV9JTlEgMDANCjMwODQ4OS82MTgyNDAyMjUyOTAgICAgICAgKzAuMDAgVUFIDQoxODozOToxMSBQSU4gRU5URVJFRA0KMTg6Mzk6MTUgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTg6Mzk6MTYgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTg6Mzk6MTYgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTg6Mzk6MTcNCjUuLjE2ODINCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQozMDg0OTAvNjE4MjQwMjI1MzA5ICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxODozOToyNSBBTU9VTlQgNTcwMDAwIEVOVEVSRUQNCjE4OjM5OjI3IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEICBESEENCjE4OjM5OjI4IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTg6Mzk6MjggVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxODozOToyOCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTg6Mzk6MzUgQ0FSRCg1MTY3ODAqKioqKioxNjgyKSBUQUtFTg0KMTg6Mzk6MzUgPC0gVFJBTlNBQ1RJT04gRU5EDQoxODo0Njo0MCAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTg6NDY6NDAgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio4NTM5DQoxODo0NzowMiBQSU4gRU5URVJFRA0KMTg6NDc6MDYgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMTg6NDc6MDcgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMTg6NDc6MDggVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTg6NDc6MDkNCjUuLjg1MzkNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQo4MDcwNTcvNjE4MjQxMjI1NjY5ICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoxODo0NzoxMyBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyAgQ0hBDQoxODo0NzoxNCBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjE4OjQ3OjE0IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTg6NDc6MTQgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjE4OjQ3OjE5IENBUkQoNTE2NzgwKioqKioqODUzOSkgVEFLRU4NCjE4OjQ3OjE5IDwtIFRSQU5TQUNUSU9OIEVORA0KMTg6NDc6MjUgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE4OjQ3OjI1IFRSQUNLIDIgREFUQTogNTE2NzgwKioqKioqODUzOQ0KMTg6NDc6MzggUElOIEVOVEVSRUQNCjE4OjQ3OjQxIFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjE4OjQ3OjQyIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjE4OjQ3OjQzIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDE4OjQ3OjQzDQo1Li44NTM5DQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KODA3MDU4LzYxODI0MDIyNTY5NiAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMTg6NDc6NDggVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUMgIEJIQQ0KMTg6NDc6NDkgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxODo0Nzo0OSBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE4OjQ3OjUwIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxODo0Nzo1MiBDQVJEKDUxNjc4MCoqKioqKjg1MzkpIFRBS0VODQoxODo0Nzo1NSA8LSBUUkFOU0FDVElPTiBFTkQNCjE4OjU4OjA4IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxODo1ODowOCBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjExNjcNCjE4OjU4OjQxIFBJTiBFTlRFUkVEDQoxODo1ODo0NyBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoxODo1ODo0OCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoxODo1ODo0OCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxODo1ODo0OQ0KNS4uMTE2Nw0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjc1NTA4My82MTgyNDAyMjYxNTYgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjE4OjU5OjA2IEFNT1VOVCAxNTAwMDAgRU5URVJFRA0KMTg6NTk6MTAgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgIERIQQ0KMTg6NTk6MTEgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxODo1OToxMiBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjE4OjU5OjE3IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxODo1OToyMCBDQVJEKDUxNjc4MCoqKioqKjExNjcpIFRBS0VODQoxODo1OToyMiA8LSBUUkFOU0FDVElPTiBFTkQNCjE4OjU5OjUxIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxODo1OTo1MSBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjExNjcNCjE5OjAwOjEwIFBJTiBFTlRFUkVEDQoxOTowMDoxNyBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoxOTowMDoxOSBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoxOTowMDoxOSBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxOTowMDoyMA0KNS4uMTE2Nw0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjc1NTA4NC82MTgyNDAyMjYyMDUgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjE5OjAwOjMxIEFNT1VOVCAxNTAwMDAgRU5URVJFRA0KMTk6MDA6MzQgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgIERIQQ0KMTk6MDA6MzYgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxOTowMDozNiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE5OjAwOjM2IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxOTowMDo0NSBDQVJEKDUxNjc4MCoqKioqKjExNjcpIFRBS0VODQoxOTowMDo0NSA8LSBUUkFOU0FDVElPTiBFTkQNCjE5OjA5OjI5IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxOTowOToyOSBUUkFDSyAyIERBVEE6IDUzNTMwNSoqKioqKjc2MDMNCjE5OjA5OjQ2IFBJTiBFTlRFUkVEDQoxOTowOTo1MCBUUkFOU0FDVElPTiBSRVFVRVNUIEJBRCBEICBBDQoxOTowOTo1MiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDMxMCBGVU5DVElPTiBEMDM1DQoxOTowOTo1MiBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxOTowOTo1Mg0KNS4uNzYwMw0KQkFMQU5DRV9JTlEgMDANCjAwNjcyNS82MTgyNDEyMjY1NjUgICAgICAgKzAuMDAgVUFIDQoxOToxMDowMyBQSU4gRU5URVJFRA0KMTk6MTA6MTQgQU1PVU5UIDM0MDAwMCBFTlRFUkVEDQoxOToxMDoxNyBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCBERCBBDQoxOToxMDoxOCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE5OjEwOjE5IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTk6MTA6MTkgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjE5OjEwOjI1IENBUkQoNTM1MzA1KioqKioqNzYwMykgVEFLRU4NCjE5OjEwOjI1IDwtIFRSQU5TQUNUSU9OIEVORA0KMTk6MTA6MzMgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE5OjEwOjMzIFRSQUNLIDIgREFUQTogNTM1MzA1KioqKioqNzYwMw0KMTk6MTA6NTEgUElOIEVOVEVSRUQNCjE5OjExOjAyIEFNT1VOVCAzMDAwMDAgRU5URVJFRA0KMTk6MTE6MDUgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgREQgQQ0KMTk6MTE6MDYgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxOToxMTowNiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE5OjExOjA2IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxOToxMToxMCBDQVJEKDUzNTMwNSoqKioqKjc2MDMpIFRBS0VODQoxOToxMToxMiA8LSBUUkFOU0FDVElPTiBFTkQNCjE5OjI1OjMxIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxOToyNTozMSBUUkFDSyAyIERBVEE6IDQxNDk0OSoqKioqKjA3OTANCjE5OjI1OjQyIFBJTiBFTlRFUkVEDQoxOToyNTo0NSBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCBEICBBDQoxOToyNTo0NiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE5OjI1OjUxIENBUkQoNDE0OTQ5KioqKioqMDc5MCkgVEFLRU4NCjE5OjI1OjUyIDwtIFRSQU5TQUNUSU9OIEVORA0KMTk6MjU6NTYgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE5OjI1OjU2IFRSQUNLIDIgREFUQTogNTE2ODc0KioqKioqMzQ1MQ0KMTk6MjY6MDUgUElOIEVOVEVSRUQNCjE5OjI2OjA5IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEIEQgIEENCjE5OjI2OjA5IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMTk6MjY6MTIgQ0FSRCg1MTY4NzQqKioqKiozNDUxKSBUQUtFTg0KMTk6MjY6MTUgPC0gVFJBTlNBQ1RJT04gRU5EDQoxOToyNjoxOCAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTk6MjY6MTggVFJBQ0sgMiBEQVRBOiA0MTQ5NDkqKioqKioxNDAxDQoxOToyNjoyOSBQSU4gRU5URVJFRA0KMTk6MjY6MzMgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgRCAgQQ0KMTk6MjY6MzQgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxOToyNjozNiBDQVJEKDQxNDk0OSoqKioqKjE0MDEpIFRBS0VODQoxOToyNjozOSA8LSBUUkFOU0FDVElPTiBFTkQNCjE5OjI2OjQ0IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxOToyNjo0NSBUUkFDSyAyIERBVEE6IDUxNjg3NSoqKioqKjkzMTINCjE5OjI2OjUyIFBJTiBFTlRFUkVEDQoxOToyNjo1NCBUUkFOU0FDVElPTiBSRVFVRVNUIEIgRCBEICBBDQoxOToyNjo1NiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE5OjI3OjAyIENBUkQoNTE2ODc1KioqKioqOTMxMikgVEFLRU4NCjE5OjI3OjAyIDwtIFRSQU5TQUNUSU9OIEVORA0KMTk6Mjc6MDkgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE5OjI3OjA5IFRSQUNLIDIgREFUQTogNDE0OTUwKioqKioqNzIwMw0KMTk6Mjc6MjAgUElOIEVOVEVSRUQNCjE5OjI3OjIxIFRSQU5TQUNUSU9OIFJFUVVFU1QgQiBEIEQgIEENCjE5OjI3OjIzIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzE0IEZVTkNUSU9OIFodSA0KMTk6Mjc6MjcgQ0FSRCg0MTQ5NTAqKioqKio3MjAzKSBUQUtFTg0KMTk6Mjc6MjggPC0gVFJBTlNBQ1RJT04gRU5EDQoxOToyNzozMSAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTk6Mjc6MzcgQ0FSRCgpIFRBS0VODQoxOToyNzozOCA8LSBUUkFOU0FDVElPTiBFTkQNCjE5OjI3OjQ1IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxOToyNzo0NSBUUkFDSyAyIERBVEE6IDQxODgzNyoqKioqKjM4OTENCjE5OjI3OjU2IFBJTiBFTlRFUkVEDQoxOToyNzo1OSBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCBEICBBDQoxOToyODowMSBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE5OjI4OjA1IENBUkQoNDE4ODM3KioqKioqMzg5MSkgVEFLRU4NCjE5OjI4OjA2IDwtIFRSQU5TQUNUSU9OIEVORA0KMTk6Mjg6MTEgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE5OjI4OjExIFRSQUNLIDIgREFUQTogNDE0OTUwKioqKioqMDYxNA0KMTk6Mjg6MjAgUElOIEVOVEVSRUQNCjE5OjI4OjIxIFRSQU5TQUNUSU9OIFJFUVVFU1QgQiBEIEQgIEENCjE5OjI4OjIyIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzEwIEZVTkNUSU9OIEQwMzUNCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMTk6Mjg6MjMNCjQuLjA2MTQNCkJBTEFOQ0VfSU5RIDAwDQovNjE4MjQxMjI3MjY0ICAgICAgICswLjAwIFVBSA0KMTk6Mjg6MzAgUElOIEVOVEVSRUQNCjE5OjI4OjQwIENBUkQoNDE0OTUwKioqKioqMDYxNCkgVEFLRU4NCjE5OjI4OjQzIDwtIFRSQU5TQUNUSU9OIEVORA0KMTk6Mjg6NDkgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE5OjI4OjQ5IFRSQUNLIDIgREFUQTogNTE2NzQ5KioqKioqNTkxMA0KMTk6Mjg6NTYgUElOIEVOVEVSRUQNCjE5OjI4OjU5IFRSQU5TQUNUSU9OIFJFUVVFU1QgQiBEICAgIEENCjE5OjI5OjAxIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzE0IEZVTkNUSU9OIFodSA0KMTk6Mjk6MDMgQ0FSRCg1MTY3NDkqKioqKio1OTEwKSBUQUtFTg0KMTk6Mjk6MDYgPC0gVFJBTlNBQ1RJT04gRU5EDQoxOToyOTowOSAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTk6Mjk6MDkgVFJBQ0sgMiBEQVRBOiA0MTg4MzcqKioqKio0NDY5DQoxOToyOToxNyBQSU4gRU5URVJFRA0KMTk6Mjk6MjEgVFJBTlNBQ1RJT04gUkVRVUVTVCBCIEQgRCAgQQ0KMTk6Mjk6MjIgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMTQgRlVOQ1RJT04gWh1IDQoxOToyOToyNSBDQVJEKDQxODgzNyoqKioqKjQ0NjkpIFRBS0VODQoxOToyOToyNyA8LSBUUkFOU0FDVElPTiBFTkQNCjE5OjI5OjMwIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxOToyOTozMCBUUkFDSyAyIERBVEE6IDUxNjc0OSoqKioqKjI1OTINCjE5OjI5OjM1IFBJTiBFTlRFUkVEDQoxOToyOTozNyBUUkFOU0FDVElPTiBSRVFVRVNUIEIgRCAgICBBDQoxOToyOTozOCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM1NSBGVU5DVElPTiBaHUgNCjE5OjI5OjQ2IFBJTiBFTlRFUkVEDQoxOToyOTo0OSBUUkFOU0FDVElPTiBSRVFVRVNUIEIgRCAgICBBDQoxOToyOTo1MCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDMxMCBGVU5DVElPTiBEMDM1DQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDE5OjI5OjUxDQo1Li4yNTkyDQpCQUxBTkNFX0lOUSAwMA0KNTkxOTQ4LzYxODI0MTIyNzMxOCAgICAgICArMC4wMCBVQUgNCjE5OjMwOjAxIFBJTiBFTlRFUkVEDQoxOTozMDowMyBUUkFOU0FDVElPTiBSRVFVRVNUIEMgRCAgICBBDQoxOTozMDowNCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDMxMCBGVU5DVElPTiBEMDM1DQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDE5OjMwOjA1DQo1Li4yNTkyDQpNSU5JX1NUQVRFTUVOVCAwMA0KNTkxOTQ5LzYxODI0MTIyNzMyOCAgICAgICArMC4wMCBVQUgNCjE5OjMwOjE0IENBUkQoNTE2NzQ5KioqKioqMjU5MikgVEFLRU4NCjE5OjMwOjE3IDwtIFRSQU5TQUNUSU9OIEVORA0KMTk6MzA6MzcgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE5OjMwOjM4IFRSQUNLIDIgREFUQTogNDc5MDcyKioqKioqNDEzMA0KMTk6MzA6NTAgUElOIEVOVEVSRUQNCjE5OjMwOjUyIFRSQU5TQUNUSU9OIFJFUVVFU1QgQiBEICAgIEENCjE5OjMwOjUzIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzE0IEZVTkNUSU9OIFodSA0KMTk6MzA6NTYgQ0FSRCg0NzkwNzIqKioqKio0MTMwKSBUQUtFTg0KMTk6MzA6NTggPC0gVFJBTlNBQ1RJT04gRU5EDQoxOTozMTowMyAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTk6MzE6MDMgVFJBQ0sgMiBEQVRBOiA1MTY3NDkqKioqKiowNDU1DQoxOTozMTowOSBQSU4gRU5URVJFRA0KMTk6MzE6MTAgVFJBTlNBQ1RJT04gUkVRVUVTVCBCIEQgICAgQQ0KMTk6MzE6MTEgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMTQgRlVOQ1RJT04gWh1IDQoxOTozMToxMyBDQVJEKDUxNjc0OSoqKioqKjA0NTUpIFRBS0VODQoxOTozMToxNiA8LSBUUkFOU0FDVElPTiBFTkQNCjE5OjMxOjIxIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxOTozMToyMSBUUkFDSyAyIERBVEE6IDUxNjc0OSoqKioqKjYwMjcNCjE5OjMxOjI3IENBUkQoNTE2NzQ5KioqKioqNjAyNykgVEFLRU4NCjE5OjMxOjI5IDwtIFRSQU5TQUNUSU9OIEVORA0KMTk6MzE6MzIgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE5OjMxOjMyIFRSQUNLIDIgREFUQTogNTE2NzQ5KioqKioqNjAyNw0KMTk6MzE6MzggUElOIEVOVEVSRUQNCjE5OjMxOjQxIFRSQU5TQUNUSU9OIFJFUVVFU1QgQiBEICAgIEENCjE5OjMxOjQyIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzE0IEZVTkNUSU9OIFodSA0KMTk6MzE6NDUgQ0FSRCg1MTY3NDkqKioqKio2MDI3KSBUQUtFTg0KMTk6MzE6NDcgPC0gVFJBTlNBQ1RJT04gRU5EDQoxOTozMTo1MiAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTk6MzE6NTIgVFJBQ0sgMiBEQVRBOiA1MTY3NDkqKioqKioyMjA5DQoxOTozMjowMiBQSU4gRU5URVJFRA0KMTk6MzI6MDQgVFJBTlNBQ1RJT04gUkVRVUVTVCBCIEQgICAgQQ0KMTk6MzI6MDUgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMTAgRlVOQ1RJT04gRDAzNQ0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxOTozMjowNg0KNS4uMjIwOQ0KQkFMQU5DRV9JTlEgMDANCjI1MjIyOS82MTgyNDAyMjc0MDMgICAgICAgKzAuMDAgVUFIDQoxOTozMjoxMSBQSU4gRU5URVJFRA0KMTk6MzI6MTMgVFJBTlNBQ1RJT04gUkVRVUVTVCBDIEQgICAgQQ0KMTk6MzI6MTQgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMTAgRlVOQ1RJT04gRDAzNQ0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxOTozMjoxNQ0KNS4uMjIwOQ0KTUlOSV9TVEFURU1FTlQgMDANCjI1MjIzMC82MTgyNDEyMjc0MDkgICAgICAgKzAuMDAgVUFIDQoxOTozMjoxOCBDQVJEKDUxNjc0OSoqKioqKjIyMDkpIFRBS0VODQoxOTozMjoyMSA8LSBUUkFOU0FDVElPTiBFTkQNCjE5OjMyOjI0IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxOTozMjoyNCBUUkFDSyAyIERBVEE6IDUxNjc0OSoqKioqKjMwNTkNCjE5OjMyOjMzIFBJTiBFTlRFUkVEDQoxOTozMjozNSBUUkFOU0FDVElPTiBSRVFVRVNUIEIgRCAgICBBDQoxOTozMjozNiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM3NSBGVU5DVElPTiBaHUgNCjE5OjMyOjM4IENBUkQoNTE2NzQ5KioqKioqMzA1OSkgVEFLRU4NCjE5OjMyOjQxIDwtIFRSQU5TQUNUSU9OIEVORA0KMTk6MzI6NDQgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE5OjMyOjQ0IFRSQUNLIDIgREFUQTogNjcwNjM1KioqKioqNzg2NQ0KMTk6MzI6NTYgUElOIEVOVEVSRUQNCjE5OjMyOjU4IFRSQU5TQUNUSU9OIFJFUVVFU1QgQiBEICAgIEENCjE5OjMyOjU4IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzE0IEZVTkNUSU9OIFodSA0KMTk6MzM6MDAgQ0FSRCg2NzA2MzUqKioqKio3ODY1KSBUQUtFTg0KMTk6MzM6MDMgPC0gVFJBTlNBQ1RJT04gRU5EDQoxOTozMzowNiAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTk6MzM6MDYgVFJBQ0sgMiBEQVRBOiA0NzkwNzAqKioqKioyMzkyDQoxOTozMzoxNSBQSU4gRU5URVJFRA0KMTk6MzM6MTYgVFJBTlNBQ1RJT04gUkVRVUVTVCBCIEQgICAgQQ0KMTk6MzM6MTcgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMTQgRlVOQ1RJT04gWh1IDQoxOTozMzoxOSBDQVJEKDQ3OTA3MCoqKioqKjIzOTIpIFRBS0VODQoxOTozMzoyMiA8LSBUUkFOU0FDVElPTiBFTkQNCjE5OjMzOjI1IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxOTozMzoyNSBUUkFDSyAyIERBVEE6IDUxNjg3NSoqKioqKjE2NTENCjE5OjMzOjM0IFBJTiBFTlRFUkVEDQoxOTozMzozNiBUUkFOU0FDVElPTiBSRVFVRVNUIEIgRCBEICBBDQoxOTozMzozNyBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDMxMCBGVU5DVElPTiBEMDM1DQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDE5OjMzOjM4DQo1Li4xNjUxDQpCQUxBTkNFX0lOUSAwMA0KOTU3MDU3LzYxODI0MTIyNzQ2OCAgICAgICArMC4wMCBVQUgNCjE5OjMzOjQ0IFBJTiBFTlRFUkVEDQoxOTozMzo0NyBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCBEICBBDQoxOTozMzo0OCBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE5OjMzOjUxIENBUkQoNTE2ODc1KioqKioqMTY1MSkgVEFLRU4NCjE5OjMzOjU0IDwtIFRSQU5TQUNUSU9OIEVORA0KMTk6MzQ6MTAgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjE5OjM0OjEwIFRSQUNLIDIgREFUQTogNTE2NzQ5KioqKioqNzg0OQ0KMTk6MzQ6MTUgUElOIEVOVEVSRUQNCjE5OjM0OjE4IFRSQU5TQUNUSU9OIFJFUVVFU1QgQiBEICAgIEENCjE5OjM0OjE5IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzc1IEZVTkNUSU9OIFodSA0KMTk6MzQ6MjEgQ0FSRCg1MTY3NDkqKioqKio3ODQ5KSBUQUtFTg0KMTk6MzQ6MjUgPC0gVFJBTlNBQ1RJT04gRU5EDQoxOTozNDoyNyAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMTk6MzQ6MjggVFJBQ0sgMiBEQVRBOiA0MTQ5NDkqKioqKio5MzEwDQoxOTozNDozNCBQSU4gRU5URVJFRA0KMTk6MzQ6MzUgVFJBTlNBQ1RJT04gUkVRVUVTVCBCIEQgRCAgQQ0KMTk6MzQ6MzcgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzNTUgRlVOQ1RJT04gWh1IDQoxOTozNDo0MCBDQVJEKDQxNDk0OSoqKioqKjkzMTApIFRBS0VODQoxOTozNDo0MyA8LSBUUkFOU0FDVElPTiBFTkQNCjE5OjU2OjM3IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxOTo1NjozNyBUUkFDSyAyIERBVEE6IDQ3OTA3MioqKioqKjkwODcNCjE5OjU2OjUwIFBJTiBFTlRFUkVEDQoxOTo1Njo1NCBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoxOTo1Njo1NSBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoxOTo1Njo1NSBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxOTo1Njo1Ng0KNC4uOTA4Nw0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjU5OTE4Mi82MTgyNDEyMjgyODMgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjE5OjU3OjA1IEFNT1VOVCAxMTAwMDAgRU5URVJFRA0KMTk6NTc6MDggVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUMgIERIQQ0KMTk6NTc6MDkgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoxOTo1NzowOSBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjE5OjU3OjA5IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoxOTo1NzoxNyBDQVJEKDQ3OTA3MioqKioqKjkwODcpIFRBS0VODQoxOTo1NzoxNyA8LSBUUkFOU0FDVElPTiBFTkQNCjE5OjU3OjUxIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoxOTo1Nzo1MSBUUkFDSyAyIERBVEE6IDQ3OTA3MioqKioqKjkwODcNCjE5OjU4OjA3IFBJTiBFTlRFUkVEDQoxOTo1ODoxMSBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoxOTo1ODoxMiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoxOTo1ODoxMiBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAxOTo1ODoxMw0KNC4uOTA4Nw0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjU5OTE4My82MTgyNDEyMjgzMjQgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjE5OjU4OjI0IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEICBISEENCjE5OjU4OjI1IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMTk6NTg6MjUgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoxOTo1ODoyNSBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMTk6NTg6MzAgQ0FSRCg0NzkwNzIqKioqKio5MDg3KSBUQUtFTg0KMTk6NTg6MzAgPC0gVFJBTlNBQ1RJT04gRU5EDQoyMDoxNTowNCAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMjA6MTU6MDUgVFJBQ0sgMiBEQVRBOiA1MTY3ODEqKioqKiowNjE2DQoyMDoxNToxOCBQSU4gRU5URVJFRA0KMjA6MTU6MjIgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMjA6MTU6MjQgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMjA6MTU6MjQgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMjA6MTU6MjUNCjUuLjA2MTYNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQozODMwNjkvNjE4MjQwMjI4ODM1ICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoyMDoxNTozMyBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCAgQkhBDQoyMDoxNTozNSBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjIwOjE1OjM1IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMjA6MTU6MzUgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjIwOjE1OjQyIENBUkQoNTE2NzgxKioqKioqMDYxNikgVEFLRU4NCjIwOjE1OjQyIDwtIFRSQU5TQUNUSU9OIEVORA0KMjA6MTU6NDYgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjIwOjE1OjQ3IFRSQUNLIDIgREFUQTogNTE2NzgxKioqKioqMDYxNg0KMjA6MTY6MDAgUElOIEVOVEVSRUQNCjIwOjE2OjA0IFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjIwOjE2OjA1IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjIwOjE2OjA2IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDIwOjE2OjA3DQo1Li4wNjE2DQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KMzgzMDcwLzYxODI0MDIyODg1MiAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMjA6MTY6MTEgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgIEFIQQ0KMjA6MTY6MTIgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoyMDoxNjoxMiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjIwOjE2OjEyIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoyMDoxNjoxNSBDQVJEKDUxNjc4MSoqKioqKjA2MTYpIFRBS0VODQoyMDoxNjoxOCA8LSBUUkFOU0FDVElPTiBFTkQNCjIwOjUyOjAwIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoyMDo1MjowMSBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjkxNzcNCjIwOjUyOjE3IFBJTiBFTlRFUkVEDQoyMDo1MjoyMSBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoyMDo1MjoyMiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoyMDo1MjoyMyBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAyMDo1MjoyNA0KNS4uOTE3Nw0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjI2MTI0NS82MTgyNDAyMjk3MjEgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjIwOjUyOjM0IEFNT1VOVCAxNTAwMDAgRU5URVJFRA0KMjA6NTI6MzUgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgIERIQQ0KMjA6NTI6MzYgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoyMDo1MjozNiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjIwOjUyOjM2IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoyMDo1MjozOSBDQVJEKDUxNjc4MCoqKioqKjkxNzcpIFRBS0VODQoyMDo1Mjo0MyA8LSBUUkFOU0FDVElPTiBFTkQNCjIwOjUyOjUwIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoyMDo1Mjo1MCBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjkxNzcNCjIwOjUzOjAyIFBJTiBFTlRFUkVEDQoyMDo1MzowNiBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoyMDo1MzowNyBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoyMDo1MzowNyBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAyMDo1MzowOA0KNS4uOTE3Nw0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjI2MTI0Ni82MTgyNDEyMjk3MzYgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjIwOjUzOjE3IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEICBISEENCjIwOjUzOjE4IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMjA6NTM6MTggVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoyMDo1MzoxOCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMjA6NTM6MjEgQ0FSRCg1MTY3ODAqKioqKio5MTc3KSBUQUtFTg0KMjA6NTM6MjMgPC0gVFJBTlNBQ1RJT04gRU5EDQoyMToyMDozNSAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMjE6MjA6MzUgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio2NTE4DQoyMToyMDo1NCBQSU4gRU5URVJFRA0KMjE6MjA6NTkgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMjE6MjE6MDAgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMjE6MjE6MDEgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMjE6MjE6MDINCjUuLjY1MTgNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQoxMTg3MTAvNjE4MjQxMjMwMjMxICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoyMToyMTowNyBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyAgQkhBDQoyMToyMTowOCBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjIxOjIxOjA4IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMjE6MjE6MDggVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjIxOjIxOjExIENBUkQoNTE2NzgwKioqKioqNjUxOCkgVEFLRU4NCjIxOjIxOjEzIDwtIFRSQU5TQUNUSU9OIEVORA0KMjE6MjE6MjEgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjIxOjIxOjIxIFRSQUNLIDIgREFUQTogNDc5MDcyKioqKioqNTI3OA0KMjE6MjE6MzUgUElOIEVOVEVSRUQNCjIxOjIxOjM5IFRSQU5TQUNUSU9OIFJFUVVFU1QgQkFEICAgIEENCjIxOjIxOjQwIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzEwIEZVTkNUSU9OIEQwMzUNCjIxOjIxOjQwIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDIxOjIxOjQyDQo0Li41Mjc4DQpCQUxBTkNFX0lOUSAwMA0KOTkxNDU5LzYxODI0MTIzMDI0NyAgICAgICArMC4wMCBVQUgNCjIxOjIxOjU0IFBJTiBFTlRFUkVEDQoyMToyMTo1OCBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoyMToyMTo1OSBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoyMToyMTo1OSBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAyMToyMjowMA0KNC4uNTI3OA0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjk5MTQ2MC82MTgyNDAyMzAyNTUgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjIxOjIyOjA0IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFDICBBSEENCjIxOjIyOjA1IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMjE6MjI6MDUgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoyMToyMjowNSBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMjE6MjI6MDkgQ0FSRCg0NzkwNzIqKioqKio1Mjc4KSBUQUtFTg0KMjE6MjI6MTEgPC0gVFJBTlNBQ1RJT04gRU5EDQoyMToyODo1MyAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMjE6Mjg6NTMgVFJBQ0sgMiBEQVRBOiA0NDgzODIqKioqKio0MDQ2DQoyMToyOTowOSBQSU4gRU5URVJFRA0KMjE6Mjk6MTUgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMjE6Mjk6MTYgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMjE6Mjk6MTcgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMjE6Mjk6MTcNCjQuLjQwNDYNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQo1NTc4MDMvNjE4MjQxMjMwMzg2ICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoyMToyOToyMiBUUkFOU0FDVElPTiBSRVFVRVNUIEFBQyAgQ0hBDQoyMToyOToyMiBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjIxOjI5OjIyIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMjE6Mjk6MjIgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjIxOjI5OjI2IENBUkQoNDQ4MzgyKioqKioqNDA0NikgVEFLRU4NCjIxOjI5OjI3IDwtIFRSQU5TQUNUSU9OIEVORA0KMjE6Mjk6MzIgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjIxOjI5OjMyIFRSQUNLIDIgREFUQTogNDQ4MzgyKioqKioqNDA0Ng0KMjE6Mjk6NDQgUElOIEVOVEVSRUQNCjIxOjI5OjQ4IFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjIxOjI5OjQ5IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjIxOjI5OjQ5IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDIxOjI5OjUxDQo0Li40MDQ2DQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KNTU3ODA0LzYxODI0MDIzMDM5OCAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMjE6MzA6MDAgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUMgIEFIQQ0KMjE6MzA6MDEgRVhURVJOQUwgQVVUSEVOVElDQVRFOiBOTyBBUlBDDQoyMTozMDowMSBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDM5NiBGVU5DVElPTiBaHUgNCjIxOjMwOjAxIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoyMTozMDowNSBDQVJEKDQ0ODM4MioqKioqKjQwNDYpIFRBS0VODQoyMTozMDowNyA8LSBUUkFOU0FDVElPTiBFTkQNCjIxOjQyOjE2IC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoyMTo0MjoxNiBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjQzMDkNCjIxOjQyOjM5IFBJTiBFTlRFUkVEDQoyMTo0Mjo0NSBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoyMTo0Mjo0NiBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoyMTo0Mjo0NyBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAyMTo0Mjo0OA0KNS4uNDMwOQ0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjEzMjEyMy82MTgyNDEyMzA2MzUgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjIxOjQyOjU1IFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFDICBCSEENCjIxOjQyOjU2IEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMjE6NDI6NTYgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoyMTo0Mjo1NiBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMjE6NDM6MDAgQ0FSRCg1MTY3ODAqKioqKio0MzA5KSBUQUtFTg0KMjE6NDM6MDIgPC0gVFJBTlNBQ1RJT04gRU5EDQoyMTo0MzoyOSAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMjE6NDM6MjkgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio0MzA5DQoyMTo0Mzo0OCBQSU4gRU5URVJFRA0KMjE6NDM6NTMgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMjE6NDM6NTQgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCA2ODEgRlVOQ1RJT04gRA0KMjE6NDM6NTUgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMjE6NDM6NTYNCjUuLjQzMDkNCkNBUkRfQ1RSTF9SRVFVRVNUIDAwDQoxMzIxMjQvNjE4MjQwMjMwNjU5ICAgICAgICswLjAwIFVBSA0KQ0hFQ0tfTU9CSUxFDQoyMTo0NDowMiBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCAgQUhBDQoyMTo0NDowMyBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjIxOjQ0OjAzIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMjE6NDQ6MDMgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjIxOjQ0OjA5IENBUkQoNTE2NzgwKioqKioqNDMwOSkgVEFLRU4NCjIxOjQ0OjA5IDwtIFRSQU5TQUNUSU9OIEVORA0KMjE6NDQ6MjIgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjIxOjQ0OjIyIFRSQUNLIDIgREFUQTogNTE2NzgwKioqKioqNDMwOQ0KMjE6NDQ6NTAgQ0FSRCg1MTY3ODAqKioqKio0MzA5KSBUQUtFTg0KMjE6NDQ6NTEgPC0gVFJBTlNBQ1RJT04gRU5EDQoyMTo0NDo1OCAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMjE6NDQ6NTggVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio0MzA5DQoyMTo0NToxOCBQSU4gRU5URVJFRA0KMjE6NDU6MjIgVFJBTlNBQ1RJT04gUkVRVUVTVCBEICAgRCBIQQ0KMjE6NDU6MjQgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzNTUgRlVOQ1RJT04gWh1IDQoyMTo0NToyNSBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMjE6NDU6MzUgQ0FSRCg1MTY3ODAqKioqKio0MzA5KSBUQUtFTg0KMjE6NDU6MzYgPC0gVFJBTlNBQ1RJT04gRU5EDQoyMTo0NTo0MyAtPiBUUkFOU0FDVElPTiBTVEFSVA0KMjE6NDU6NDMgVFJBQ0sgMiBEQVRBOiA1MTY3ODAqKioqKio0MzA5DQoyMTo0NjowMCBQSU4gRU5URVJFRA0KMjE6NDY6MTAgVFJBTlNBQ1RJT04gUkVRVUVTVCBCQUQgICAgQQ0KMjE6NDY6MTIgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzMTAgRlVOQ1RJT04gRDAzNQ0KMjE6NDY6MTIgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKg0KQTE1MDAwNTYgMDEuMDcuMjYgMjE6NDY6MTMNCjUuLjQzMDkNCkJBTEFOQ0VfSU5RIDAwDQoxMzIxMjUvNjE4MjQxMjMwNzAzICAgICAgICswLjAwIFVBSA0KMjE6NDY6MjYgUElOIEVOVEVSRUQNCjIxOjQ2OjM0IFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjIxOjQ2OjM1IFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjIxOjQ2OjM1IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDIxOjQ2OjM2DQo1Li40MzA5DQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KMTMyMTI2LzYxODI0MDIzMDcxMyAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMjE6NDY6NTYgQU1PVU5UIDkwMDAwMCBFTlRFUkVEDQoyMTo0Njo1OSBUUkFOU0FDVElPTiBSRVFVRVNUIEFBRCAgREhBDQoyMTo0NzowMCBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjIxOjQ3OjAwIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgMzk2IEZVTkNUSU9OIFodSA0KMjE6NDc6MDEgVFZSOiA4MDAwMDQwMDAwLCBUU0k6IDYwMDANCjIxOjQ3OjA1IENBUkQoNTE2NzgwKioqKioqNDMwOSkgVEFLRU4NCjIxOjQ3OjA2IDwtIFRSQU5TQUNUSU9OIEVORA0KMjE6NDc6MjAgLT4gVFJBTlNBQ1RJT04gU1RBUlQNCjIxOjQ3OjIwIFRSQUNLIDIgREFUQTogNTE2NzgwKioqKioqNDMwOQ0KMjE6NDc6MzcgUElOIEVOVEVSRUQNCjIxOjQ3OjQyIFRSQU5TQUNUSU9OIFJFUVVFU1QgRCAgIEQgSEENCjIxOjQ3OjQzIFRSQU5TQUNUSU9OIFJFUExZIE5FWFQgNjgxIEZVTkNUSU9OIEQNCjIxOjQ3OjQ0IFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioNCkExNTAwMDU2IDAxLjA3LjI2IDIxOjQ3OjQ1DQo1Li40MzA5DQpDQVJEX0NUUkxfUkVRVUVTVCAwMA0KMTMyMTI3LzYxODI0MDIzMDczOCAgICAgICArMC4wMCBVQUgNCkNIRUNLX01PQklMRQ0KMjE6NDc6NTAgVFJBTlNBQ1RJT04gUkVRVUVTVCBBQUQgIEhIQQ0KMjE6NDc6NTEgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoyMTo0Nzo1MSBFWFRFUk5BTCBBVVRIRU5USUNBVEU6IE5PIEFSUEMNCjIxOjQ3OjUxIFRWUjogODAwMDA0MDAwMCwgVFNJOiA2MDAwDQoyMTo0Nzo1NSBDQVJEKDUxNjc4MCoqKioqKjQzMDkpIFRBS0VODQoyMTo0Nzo1NyA8LSBUUkFOU0FDVElPTiBFTkQNCjIxOjU0OjAzIC0+IFRSQU5TQUNUSU9OIFNUQVJUDQoyMTo1NDowMyBUUkFDSyAyIERBVEE6IDUxNjc4MCoqKioqKjQ5MTENCjIxOjU0OjIxIFBJTiBFTlRFUkVEDQoyMTo1NDoyOCBUUkFOU0FDVElPTiBSRVFVRVNUIEQgICBEIEhBDQoyMTo1NDoyOSBUUkFOU0FDVElPTiBSRVBMWSBORVhUIDY4MSBGVU5DVElPTiBEDQoyMTo1NDozMCBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqDQpBMTUwMDA1NiAwMS4wNy4yNiAyMTo1NDozMQ0KNS4uNDkxMQ0KQ0FSRF9DVFJMX1JFUVVFU1QgMDANCjU3MzI0OC82MTgyNDEyMzA4NjAgICAgICAgKzAuMDAgVUFIDQpDSEVDS19NT0JJTEUNCjIxOjU0OjQwIFRSQU5TQUNUSU9OIFJFUVVFU1QgQUFEICBDSEENCjIxOjU0OjQxIEVYVEVSTkFMIEFVVEhFTlRJQ0FURTogTk8gQVJQQw0KMjE6NTQ6NDEgVFJBTlNBQ1RJT04gUkVQTFkgTkVYVCAzOTYgRlVOQ1RJT04gWh1IDQoyMTo1NDo0MSBUVlI6IDgwMDAwNDAwMDAsIFRTSTogNjAwMA0KMjE6NTQ6NDUgQ0FSRCg1MTY3ODAqKioqKio0OTExKSBUQUtFTg0KMjE6NTQ6NDYgPC0gVFJBTlNBQ1RJT04gRU5EDQoyMjo1NDo0MiBHTyBJTiBTRVJWSUNFIENPTU1BTkQNCjIzOjU0OjQyIEdPIElOIFNFUlZJQ0UgQ09NTUFORA0K";
+  var SAMPLE_NAME = "1787315544129_20260701.JRN";
+
+  // ---------------------------------------------------------------
+  // Decoding
+  // ---------------------------------------------------------------
+  function decodeBytes(bytes) {
+    var utf8 = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+    if (utf8.indexOf("\uFFFD") === -1) return { text: utf8, encoding: "UTF-8" };
+    try {
+      return { text: new TextDecoder("windows-1251").decode(bytes), encoding: "Windows-1251 (CP1251)" };
+    } catch (e) {
+      return { text: utf8, encoding: "UTF-8 (з нерозпізнаними символами)" };
+    }
+  }
+
+  function b64ToBytes(b64) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  // ---------------------------------------------------------------
+  // Parsing helpers
+  // ---------------------------------------------------------------
+  function detectBaseDate(text, filename) {
+    if (filename) {
+      var m = filename.match(/(20\d{2})(\d{2})(\d{2})/);
+      if (m && +m[2] >= 1 && +m[2] <= 12 && +m[3] >= 1 && +m[3] <= 31) {
+        return m[1] + "-" + m[2] + "-" + m[3];
+      }
+    }
+    var m2 = text.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+    if (m2) return m2[3] + "-" + m2[2] + "-" + m2[1];
+    return null;
+  }
+
+  function diffMinutes(t1, t2) {
+    var a = t1.split(":").map(Number), b = t2.split(":").map(Number);
+    var s1 = a[0] * 3600 + a[1] * 60 + a[2];
+    var s2 = b[0] * 3600 + b[1] * 60 + b[2];
+    var d = s2 - s1;
+    if (d < 0) d += 24 * 3600;
+    return Math.round(d / 60);
+  }
+
+  function formatDuration(mins) {
+    var h = Math.floor(mins / 60), m = mins % 60;
+    if (h > 0) return h + " год " + m + " хв";
+    return m + " хв";
+  }
+
+  // ---------------------------------------------------------------
+  // CDM (касетний диспенсер) — таблиця кодів помилок, перекладена з
+  // офіційної документації виробника Diebold Nixdorf / Wincor Nixdorf
+  // "CMD-V4 Basic Error Codes" (документ надано користувачем, файл
+  // «СКОД»). Формат журналу: CDM ERROR: <клас> <код> <резерв>.
+  // Для стандартних кодів клас = 0000001D, а самé номер помилки — це
+  // останні 2 цифри поля <код> (наприклад 20001818 -> код 18).
+  // ---------------------------------------------------------------
+  var CDM_DISPENSER_CODES = {
+    1: { reason: "Несправність програмного забезпечення — немає відповіді від ПЗ CDM.",
+      measure: "Вимкніть живлення диспенсера на 5–10 хв, потім увімкніть знову. Якщо не допомогло — оновіть прошивку; якщо помилка лишається й після оновлення — замініть контролер CMD." },
+    5: { reason: "Проблема зв'язку з чіп-карткою.",
+      measure: "Перевірте всі кабелі CMD, перезапустіть CMD; у крайньому разі замініть контролер чіп-картки." },
+    6: { reason: "Проблема зв'язку з чіп-карткою.",
+      measure: "Перевірте всі кабелі CMD, перезапустіть CMD; у крайньому разі замініть контролер чіп-картки." },
+    8: { reason: "Проблема зв'язку з EEPROM стекера.",
+      measure: "Перевірте кабель EEPROM від роз'єму, виконайте скидання контролера (CL); у крайньому разі замініть EEPROM." },
+    9: { reason: "Запобіжний вимикач-замок відкритий — диспенсер вставлений не повністю.",
+      measure: "Вставте диспенсер належним чином, перевірте фіксувальну ручку/вимикач, переконайтеся, що диспенсер у позиції видачі." },
+    10: { reason: "Несправна електроніка CMD; батарея розряджена або джампер батареї не під'єднаний.",
+      measure: "Вимкніть живлення диспенсера на 5–10 хв, увімкніть знову; якщо повторюється — замініть батарею контролера, потім, за потреби, сам контролер CMD." },
+    11: { reason: "Відсутня прошивка в контролері CMD.",
+      measure: "Перезапустіть банкомат і дочекайтесь завантаження прошивки. Перевірте наявність файлу прошивки на диску; за відсутності — скопіюйте з дистрибутивного носія, перезапустіть банкомат." },
+    12: { reason: "Запобіжний замок відкритий (CMD вставлено не повністю).",
+      measure: "Вставте диспенсер належним чином — перевірте задній і лівий бічний вимикачі." },
+    13: { reason: "Досягнуто максимальної кількості ретрактів — клієнт не забрав готівку із затискача, або проблема шторки; транзакцію відкликано.",
+      measure: "Вийміть готівку клієнта з блоку ретракту через операторську функцію, скиньте пристрій і очистіть лічильник ретрактів (меню постачальника → Clear Retracts)." },
+    14: { reason: "Відсутня мінімальна конфігурація — потрібна щонайменше одна касета реджект/ретракт і одна касета видачі.",
+      measure: "Вставте касети й залогуйте їх через операторську функцію (меню постачальника → Logon Cassette)." },
+    15: { reason: "Плата розподілу касет некоректно закодована, не вставлена або несправна.",
+      measure: "Перевірте кабель до плати розподілу; скиньте (CL) контролер CMD; якщо не допомагає — замініть плату." },
+    16: { reason: "Некоректне кодування вихідного транспорту.",
+      measure: "Перевірте кабель і датчик вихідного транспорту та кабель затискача; скиньте (CL) контролер; за потреби замініть вихідний лоток." },
+    17: { reason: "Несправний ремінний привід затискача (M3) або затискач заклинило.",
+      measure: "Перевірте двигун і шестерні затискача, датчик лотка вихідного транспорту, стан касети реджекту зсередини." },
+    18: { reason: "Затор банкнот під час видачі — готівка недоступна клієнту.",
+      measure: "Перевірте весь тракт купюр від касет до приймального лотка, проведіть повне сервісне обслуговування диспенсера (VSAT), перевірте ролики й шестерні у зоні датчика SP. Якщо повторюється — перевірте вільний хід внутрішньої шестерні касет, скиньте контролер (CL) і повторіть тест." },
+    19: { reason: "Затискач/захват несправний або заблокований.",
+      measure: "Перевірте кабель затискача та затор банкнот у вихідному транспорті. Усуньте затор, перезапустіть CMD; за потреби замініть стекер або кабель затискача." },
+    20: { reason: "Несправний/заблокований перемикач одиночного реджекту (MA2/1, MA2/2, SM1) — можливо, з касети береться більш ніж одна купюра за раз.",
+      measure: "Заберіть готівку з одиночного реджекту, перевірте пружину під цією позицією. Запустіть тестову функцію 2 (механічний тест); якщо магніт MA2 не рухається — замініть стекер/вихідний транспорт або контролер." },
+    21: { reason: "Несправна вимірювальна станція (DDU).",
+      measure: "Перевірте затор банкнот у зоні вимірювальної станції, кабельні з'єднання, очистіть контакти MS; скиньте контролер (CL); за потреби замініть MS." },
+    22: { reason: "Несправний підсилювач фотодатчика або невдала ініціалізація вимірювальної станції (MS).",
+      measure: "Потрібна заміна вимірювальної станції (MS) — часта причина: велике навантаження транзакціями або слабке живлення." },
+    23: { reason: "Несправний/заблокований диск маршрутизації (SM2/SM3); несправний перемикач кола.",
+      measure: "Перевірте шестерні, люфт і вільний хід двигуна диска маршрутизації, очистіть; переконайтесь, що обидва диски в однаковому положенні. Запустіть тестову функцію 2; якщо повторюється — скиньте контролер (CL), потім замініть стекер." },
+    24: { reason: "Несправний/заблокований привід реджект/ретракт (MA6).",
+      measure: "Вставте касету реджект/ретракт заново, перевірте рух приводу MA6; очистіть і відрегулюйте зону датчика реджект/ретракту (DPS4, DPS5, DPS6, HS3)." },
+    25: { reason: "Несправний привід видачі (DCM1); можливий затор готівки.",
+      measure: "Перевірте весь тракт видачі, проведіть повне сервісне обслуговування диспенсера (VSAT); якщо повторюється — скиньте контролер (CL), потім замініть стекер." },
+    26: { reason: "Несправний/заблокований привід коліс стекера (SM3).",
+      measure: "Перевірте колеса стекера й головний двигун, зону приймального лотка на застряглі банкноти/обрізки. Запустіть тестову функцію 2; якщо повторюється — скиньте контролер (CL), потім замініть стекер або двигун." },
+    28: { reason: "Несправність шторки; проблема фотодатчика — забруднення або зміщення позиції (PS26, PS27).",
+      measure: "Проведіть повне обслуговування шторки: очистіть призми навпроти датчика шторки, скиньте й протестуйте контролер CMD; якщо не допомагає — замініть шторку." },
+    29: { reason: "Фотодатчик видачі перекритий (ознака спроби маніпуляції); проблема шторки, фотодатчик забруднений/зміщений (PS26, PS27).",
+      measure: "Те саме повне обслуговування шторки, що й для коду 28." },
+    31: { reason: "Забагато проблем під час видачі з касети №1.", measure: "Вийміть касету 1, перевірте вільний хід внутрішньої шестерні й правильність укладання банкнот; проведіть VSAT відповідного модуля видачі (шестерні, датчики SP, муфта двигуна)." },
+    32: { reason: "Забагато проблем під час видачі з касети №2.", measure: "Та сама процедура, що й для коду 31, для касети 2." },
+    33: { reason: "Забагато проблем під час видачі з касети №3.", measure: "Та сама процедура, що й для коду 31, для касети 3." },
+    34: { reason: "Забагато проблем під час видачі з касети №4.", measure: "Та сама процедура, що й для коду 31, для касети 4." },
+    41: { reason: "Готівку не вдалося видати, або неправильний тиск на банкноти у щойно вставленій касеті №1.",
+      measure: "Вийміть касету 1, перевірте вставлені банкноти (рівність укладання, пом'яті/вигнуті купюри, злипання), перевірте зону видачі модуля; проведіть VSAT відповідного модуля." },
+    42: { reason: "Готівку не вдалося видати, або неправильний тиск на банкноти у щойно вставленій касеті №2.", measure: "Та сама процедура, що й для коду 41, для касети 2." },
+    43: { reason: "Готівку не вдалося видати, або неправильний тиск на банкноти у щойно вставленій касеті №3.", measure: "Та сама процедура, що й для коду 41, для касети 3." },
+    44: { reason: "Готівку не вдалося видати, або неправильний тиск на банкноти у щойно вставленій касеті №4.", measure: "Та сама процедура, що й для коду 41, для касети 4." },
+    51: { reason: "Забагато бракованих банкнот з касети №1 (подвійні, надто широкі/вузькі купюри).",
+      measure: "Перевірте, чи вставлений правильний тип банкнот і чи немає злиплих купюр; за повторення — перерахуйте еталонні значення номіналу або перевірте/замініть вузол модуля видачі." },
+    52: { reason: "Забагато бракованих банкнот з касети №2.", measure: "Та сама процедура, що й для коду 51, для касети 2." },
+    53: { reason: "Забагато бракованих банкнот з касети №3.", measure: "Та сама процедура, що й для коду 51, для касети 3." },
+    54: { reason: "Забагато бракованих банкнот з касети №4.", measure: "Та сама процедура, що й для коду 51, для касети 4." },
+    61: { reason: "Касета №1 несправна — не пройшла ініціалізацію (помилка запису EEPROM касети).",
+      measure: "Перевірте внутрішній кабель касети, датчик тиску, з'єднання конекторів; якщо повторюється з іншою касетою в цьому модулі — замініть касету." },
+    62: { reason: "Касета №2 несправна — не пройшла ініціалізацію (помилка запису EEPROM касети).", measure: "Та сама процедура, що й для коду 61, для касети 2." },
+    63: { reason: "Касета №3 несправна — не пройшла ініціалізацію (помилка запису EEPROM касети).", measure: "Та сама процедура, що й для коду 61, для касети 3." },
+    64: { reason: "Касета №4 несправна — не пройшла ініціалізацію (помилка запису EEPROM касети).", measure: "Та сама процедура, що й для коду 61, для касети 4." },
+    70: { reason: "Вимірювальна станція товщини банкнот (DDU/MS) не готова.",
+      measure: "Перевірте затор банкнот у зоні вимірювальної станції; перевірте готівку на потовщення в касеті." },
+    71: { reason: "Датчик тиску видачі (PSD 1) забруднений або несправний, касета №1.",
+      measure: "Очистіть фотодатчик тиску (PSD 1); скиньте контролер (01), за потреби скиньте CMOS; якщо повторюється — замініть плату розподілу." },
+    72: { reason: "Датчик тиску видачі (PSD 2) забруднений або несправний, касета №2.", measure: "Та сама процедура, що й для коду 71, для касети 2." },
+    73: { reason: "Датчик тиску видачі (PSD 3) забруднений або несправний, касета №3.", measure: "Та сама процедура, що й для коду 71, для касети 3." },
+    74: { reason: "Датчик тиску видачі (PSD 4) забруднений або несправний, касета №4.", measure: "Та сама процедура, що й для коду 71, для касети 4." },
+    81: { reason: "Датчики порожньої касети (фото + тиску) забруднені, касета №1.",
+      measure: "Очистіть фотодатчик порожньої касети (PSE 1) і відповідну призму; скиньте/CL контролер; якщо повторюється — замініть плату розподілу." },
+    82: { reason: "Датчики порожньої касети забруднені, касета №2.", measure: "Та сама процедура, що й для коду 81, для касети 2." },
+    83: { reason: "Датчики порожньої касети забруднені, касета №3.", measure: "Та сама процедура, що й для коду 81, для касети 3." },
+    84: { reason: "Датчики порожньої касети забруднені, касета №4.", measure: "Та сама процедура, що й для коду 81, для касети 4." },
+    90: { reason: "Забруднений фотодатчик PS1 (між колесом стекера й одиночним реджектом).", measure: "Зверніться до сервісу для очищення/заміни датчика та призми." },
+    91: { reason: "Забруднений фотодатчик моніторингу касет (PS18); проблема шторки — датчики PS26, PS27.",
+      measure: "Очистіть зону датчика під головним колесом стекера; проведіть повне обслуговування шторки; за потреби — заміна шторки." },
+    93: { reason: "Несправність шторки (забруднення/зміщення фотодатчика), порожня касета одиночного реджекту, датчик PS2.",
+      measure: "Те саме повне обслуговування шторки, що й для кодів 28/29/91." },
+    95: { reason: "Несправність шторки, пов'язана з датчиком PS27 (той самий формат помилки, що й 91/93).",
+      measure: "Обслуговування шторки за тією ж процедурою." }
+  };
+
+  // Додаткові діагностичні коди шторки/затискача — клас 0000643A / 00006434,
+  // ключ — повний рядок «клас поле2 поле3» з журналу.
+  var CDM_EXTRA_CODES = {
+    "0000643A 00000000 0000FFF2": { reason: "Затискний транспорт несправний/заблокований — проблема шторки.", measure: "Повне обслуговування шторки та затискача (див. коди 19, 28, 29)." },
+    "00006434 00000000 00000020": { reason: "Шторка несправна.", measure: "Повне обслуговування шторки." },
+    "00006434 00000048 00000000": { reason: "Проблема шторки та затискача одночасно.", measure: "Повне обслуговування шторки й затискача." },
+    "00006434 00000004 00000000": { reason: "Проблема шторки та затискача (варіант коду).", measure: "Повне обслуговування шторки й затискача." },
+    "00006434 0000004D 00000000": { reason: "Помилка відповідає кодам диспенсера 17 або 19.", measure: "Див. заходи для коду 17 / 19 вище." },
+    "0000643A 00000000 0000FEC3": { reason: "Немає документа/банкноти в зоні шторки; проблема шторки.", measure: "Повне обслуговування шторки." },
+    "0000643A 00000000 0000FEC5": { reason: "Шторка закрита, хоча мала відкритися.", measure: "Повне обслуговування шторки, перевірка приводу." },
+    "0000643A 00000000 0000FEC6": { reason: "Шторка відкрита, хоча мала закритися.", measure: "Повне обслуговування шторки, перевірка приводу." },
+    "0000643A 00000000 0000FEC7": { reason: "Шторка не відкривається.", measure: "Повне обслуговування шторки, перевірка приводу." },
+    "0000643A 00000000 00000003": { reason: "Показано «сейф відкрито», хоча двері сейфа зачинені.", measure: "Перевірте контактну групу дверей сейфа й кабель датчика." }
+  };
+
+  function decodeCdmCode(fields) {
+    if (!fields || fields.length < 2) return null;
+    var f0 = (fields[0] || "").toUpperCase();
+    var f1 = (fields[1] || "").toUpperCase();
+    var f2 = (fields[2] || "").toUpperCase();
+    if (f0 === "0000001D") {
+      var num = parseInt(f1.slice(-2), 10);
+      if (!isNaN(num) && CDM_DISPENSER_CODES[num]) {
+        return { key: String(num), label: "Код помилки " + num, info: CDM_DISPENSER_CODES[num] };
+      }
+      return null;
+    }
+    if (f0 === "0000643A" || f0 === "00006434") {
+      var key = f0 + " " + f1 + " " + f2;
+      if (CDM_EXTRA_CODES[key]) {
+        return { key: key, label: "Код " + key, info: CDM_EXTRA_CODES[key] };
+      }
+      return null;
+    }
+    return null;
+  }
+
+  // ---------------------------------------------------------------
+  // Cycle reconciliation: minimal in-browser .xlsx reader (ZIP central
+  // directory walk + regex-based sheet XML parsing; no external library
+  // — inflate uses the browser's native DecompressionStream, so nothing
+  // is fetched from a CDN). Reads the specific "Журнал операцій АТМ"
+  // export format (inline string / date / numeric cell types, no
+  // sharedStrings.xml needed) produced by the processing host.
+  // ---------------------------------------------------------------
+  function parseSopBlock(lines, idx) {
+    var counts = [], raw = [], i = idx;
+    while (i < lines.length) {
+      var m = lines[i].match(/UAH\s+(\d+)\s+(\d+)\*?/);
+      if (!m) break;
+      counts.push({ denom: +m[1], count: +m[2] });
+      raw.push(lines[i].trim());
+      i++;
+    }
+    if (i < lines.length && /RETRACTS/.test(lines[i])) { raw.push(lines[i].trim()); i++; }
+    if (i < lines.length && /REJECTS/.test(lines[i])) { raw.push(lines[i].trim()); i++; }
+    return { block: { counts: counts, raw: raw }, nextIndex: i };
+  }
+
+  function parseDetailReport(lines, cpi20Index) {
+    var i = cpi20Index + 1;
+    while (i < lines.length && lines[i].trim() === "") i++;
+    if (i >= lines.length) return { report: null, nextIndex: i };
+    var address = lines[i].trim(); i++;
+    var atmId = null;
+    if (i < lines.length && /БАНКОМАТ:/.test(lines[i])) {
+      var idm = lines[i].match(/БАНКОМАТ:\s*(\S+)/);
+      atmId = idm ? idm[1] : null;
+      i++;
+    }
+    var time = null;
+    if (i < lines.length) {
+      var tm = lines[i].match(/(\d{2}):(\d{2}):(\d{2})\s*$/);
+      if (tm) time = tm[0].trim();
+      i++;
+    }
+    while (i < lines.length && /^-+$/.test(lines[i].trim())) i++;
+
+    var cassettes = [];
+    while (i < lines.length && !/^=+$/.test(lines[i].trim())) {
+      var cap = lines[i].match(/Касета\s+(\d+):\s*UAH\s*([\d.]+)/i);
+      if (!cap) { i++; continue; }
+      var num = cap[1], denom = cap[2].trim();
+      i++;
+      var status = (lines[i] || "").trim();
+      i++;
+      var rejected = null;
+      while (i < lines.length && !/^-+$/.test(lines[i].trim()) && !/^=+$/.test(lines[i].trim())) {
+        var rm = lines[i].match(/ВІДБРАКОВАНО:\s*(\d+|-+)/);
+        if (rm && /^\d+$/.test(rm[1])) rejected = +rm[1];
+        i++;
+      }
+      while (i < lines.length && /^-+$/.test(lines[i].trim())) i++;
+      cassettes.push({ num: num, denom: denom, status: status, rejected: rejected });
+    }
+    if (i < lines.length && /^=+$/.test(lines[i].trim())) i++;
+    return { report: { address: address, atmId: atmId, time: time, cassettes: cassettes }, nextIndex: i };
+  }
+
+  // ---------------------------------------------------------------
+  // Main parser
+  // ---------------------------------------------------------------
+  function parseLog(text, filename) {
+    var rawLines = text.split(/\r\n|\n/);
+    var baseDate = detectBaseDate(text, filename);
+    var meta = { atmId: null, address: null, branch: null, firstTime: null, lastTime: null, baseDate: baseDate };
+    var findings = [];
+    var stats = { transactions: 0, reportCount: 0, lineCount: rawLines.length };
+
+    var brM = text.match(/BRANCH\s+(\S+)/);
+    if (brM) meta.branch = brM[1];
+    var atmFallback = text.match(/^([A-Z]\d{6,9})\s+\d{2}\.\d{2}\.\d{2}\s+\d{2}:\d{2}:\d{2}/m);
+    if (atmFallback) meta.atmId = atmFallback[1];
+
+    var prevCassetteReject = {};
+    var lastOutOfServiceTime = null;
+    var pendingBeforeSOP = null;
+    var timeRe = /^(\d{2}:\d{2}:\d{2})[\t ]?(.*)$/;
+    var txnTrack2Seen = false, txnTrack2Val = null;
+    var cardIssues = { noRead: 0, emptyTrack2: 0 };
+    var commTroubleStart = null;
+    var COMM_TROUBLE_PATTERNS = [
+      { re: /COMMUNICATION\s+OFFLINE/i, label: "немає зв'язку з процесинговим центром (COMMUNICATION OFFLINE)" },
+      { re: /COMMUNICATION\s+FAULT/i, label: "збій зв'язку (COMMUNICATION FAULT)" },
+      { re: /COMM(?:UNICATION)?\s+ERROR/i, label: "помилка зв'язку (COMM ERROR)" },
+      { re: /LINE\s+DOWN/i, label: "лінія зв'язку недоступна (LINE DOWN)" },
+      { re: /HOST\s+(NOT\s+RESPOND\w*|DOWN|UNREACHABLE)/i, label: "хост процесингового центру не відповідає" },
+      { re: /NO\s+RESPONSE\s+FROM\s+HOST/i, label: "немає відповіді від хоста" }
+    ];
+
+    function noteTime(t) {
+      if (!meta.firstTime) meta.firstTime = t;
+      meta.lastTime = t;
+    }
+    function push(f, lineIdx) {
+      f.line = lineIdx;
+      findings.push(f);
+    }
+
+    for (var i = 0; i < rawLines.length; i++) {
+      var line = rawLines[i];
+
+      if (line.trim() === "CPI20") {
+        var pr = parseDetailReport(rawLines, i);
+        stats.reportCount++;
+        var report = pr.report;
+        if (report) {
+          if (!meta.address) meta.address = report.address;
+          if (!meta.atmId && report.atmId) meta.atmId = report.atmId;
+          report.cassettes.forEach(function (c) {
+            if (/блок/i.test(c.status)) {
+              push({
+                severity: "critical",
+                time: report.time || meta.lastTime,
+                title: "Касета " + c.num + " (" + c.denom + " грн) заблокована",
+                detail: "За звітом о " + (report.time || "") + " касета " + c.num + " має статус «" + c.status + "» — модуль видачі не може використовувати цю касету, доки її не вилучать і не перевірять.",
+                evidence: ["Касета " + c.num + ": UAH " + c.denom, c.status]
+              }, i);
+            }
+            var prevReject = prevCassetteReject[c.num];
+            if (typeof prevReject === "number" && typeof c.rejected === "number" && c.rejected - prevReject >= 5) {
+              push({
+                severity: "warning",
+                time: report.time || meta.lastTime,
+                title: "Касета " + c.num + " відбраковує підвищену кількість купюр",
+                detail: "Лічильник відбракованих купюр зріс з " + prevReject + " до " + c.rejected + " (+" + (c.rejected - prevReject) + ") від попереднього звіту — ознака затору чи зношеного тракту подачі.",
+                evidence: ["ВІДБРАКОВАНО: " + prevReject + " → " + c.rejected]
+              }, i);
+            }
+            if (typeof c.rejected === "number") prevCassetteReject[c.num] = c.rejected;
+          });
+        }
+        i = pr.nextIndex - 1;
+        continue;
+      }
+
+      var m = line.match(timeRe);
+      if (!m) continue;
+      var time = m[1], rest = m[2].trim();
+      noteTime(time);
+
+      if (rest.indexOf("TRANSACTION START") !== -1) {
+        stats.transactions++;
+        txnTrack2Seen = false;
+        txnTrack2Val = null;
+      }
+
+      if (/^TRACK 2 DATA:/.test(rest)) {
+        txnTrack2Seen = true;
+        txnTrack2Val = rest.replace(/^TRACK 2 DATA:/, "").trim();
+      }
+
+      if (/LAST IDLE PERIOD/.test(rest)) {
+        var comp = /AGENT/.test(rest) ? "сервісний агент" : "журнал ATMSecurix";
+        var l1 = rawLines[i + 1] || "", l2 = rawLines[i + 2] || "";
+        var mFromTill = l1.match(/FROM\s+([\d-]+\s[\d:]+)\s+TILL\s+([\d-]+\s[\d:]+)/);
+        var mReason = l2.match(/REASON\s*:\s*(.+)/);
+        if (mFromTill && mReason && /ILLEGAL/i.test(mReason[1])) {
+          push({
+            severity: "critical",
+            time: time,
+            title: "Нештатне вимкнення (" + comp + ")",
+            detail: "Простій із " + mFromTill[1] + " до " + mFromTill[2] + " завершився без штатного сигналу вимкнення — банкомат перезапустився аварійно (можливе відключення живлення, зависання ОС або примусовий reset).",
+            evidence: [line.trim(), l1.trim(), l2.trim()]
+          }, i);
+        }
+        i += 2;
+        continue;
+      }
+
+      if (/^CDM ERROR:/.test(rest)) {
+        var code = rest.replace("CDM ERROR:", "").trim();
+        var prevLine = (rawLines[i - 1] || "").trim();
+        var mTxn = prevLine.match(/TRANSACTION (\d+) FAILED/);
+        var fields = code.split(/\s+/);
+        var primary = fields[1] || fields[0] || null;
+        var decoded = decodeCdmCode(fields);
+        var titleSuffix = decoded ? " — " + decoded.label : "";
+        var detailText = "Код помилки " + code + (mTxn ? ", транзакція №" + mTxn[1] + " перервана" : "") + " — диспенсер не зміг видати готівку під час обслуговування клієнта.";
+        if (decoded) {
+          detailText += " Розшифровка за документацією виробника (Diebold Nixdorf / Wincor Nixdorf CMD-V4): «" + decoded.info.reason + "» Рекомендована дія: " + decoded.info.measure;
+        }
+        push({
+          severity: "critical",
+          cdmPrimary: primary,
+          cdmDecoded: decoded,
+          title: "Апаратна помилка касетного диспенсера (CDM)" + titleSuffix,
+          time: time,
+          detail: detailText,
+          evidence: [prevLine, line.trim()].filter(Boolean),
+          cdmFields: fields
+        }, i);
+        continue;
+      }
+
+      var mCard = rest.match(/^CARD\(([^)]*)\)\s*TAKEN/);
+      if (mCard && !mCard[1]) {
+        if (!txnTrack2Seen) {
+          cardIssues.noRead++;
+          push({
+            severity: "warning",
+            title: "Зчитувач карток не прочитав картку",
+            time: time,
+            detail: "Клієнт вставив картку, але зчитувач не отримав жодних даних (немає TRACK 2 DATA) до її повернення о " + time + " — картку не вдалось прочитати взагалі. Можлива причина за документацією виробника (IDCU): забруднена або несправна головка зчитування, проблема шторки картрідера, або механічна перешкода в тракті.",
+            evidence: [line.trim()]
+          }, i);
+        } else if (txnTrack2Val === "") {
+          cardIssues.emptyTrack2++;
+          push({
+            severity: "info",
+            title: "Не прочиталась магнітна смуга картки (TRACK 2)",
+            time: time,
+            detail: "Поле TRACK 2 DATA було порожнім, хоча чіп-транзакція клієнта пройшла штатно (номер картки в журналі не зафіксовано). Поодинокий випадок зазвичай не заважає обслуговуванню, але повторення — ознака зношеної чи забрудненої головки зчитувача карток (IDCU).",
+            evidence: [line.trim()]
+          }, i);
+        }
+        continue;
+      }
+
+      var commTrouble = null;
+      for (var ci = 0; ci < COMM_TROUBLE_PATTERNS.length; ci++) {
+        if (COMM_TROUBLE_PATTERNS[ci].re.test(rest)) { commTrouble = COMM_TROUBLE_PATTERNS[ci]; break; }
+      }
+      if (commTrouble) {
+        commTroubleStart = { time: time, line: i, label: commTrouble.label };
+        continue;
+      }
+      if (/COMMUNICATION\s+ONLINE/i.test(rest) && commTroubleStart) {
+        var commMins = diffMinutes(commTroubleStart.time, time);
+        push({
+          severity: "critical",
+          title: "Втрата зв'язку з процесинговим центром (" + formatDuration(commMins) + ")",
+          time: commTroubleStart.time,
+          detail: "З " + commTroubleStart.time + " до " + time + " — " + commTroubleStart.label + ". Поки зв'язку немає, банкомат не може авторизувати операції клієнтів, навіть якщо готівка завантажена й апаратно все справно.",
+          evidence: [rawLines[commTroubleStart.line] ? rawLines[commTroubleStart.line].trim() : "", line.trim()].filter(Boolean)
+        }, commTroubleStart.line);
+        commTroubleStart = null;
+        continue;
+      }
+
+      if (/CASH COUNTERS BEFORE SOP/.test(rest)) {
+        var sb1 = parseSopBlock(rawLines, i + 1);
+        pendingBeforeSOP = { time: time, block: sb1.block, line: i };
+        i = sb1.nextIndex - 1;
+        continue;
+      }
+      if (/CASH COUNTERS AFTER SOP/.test(rest)) {
+        var sb2 = parseSopBlock(rawLines, i + 1);
+        if (pendingBeforeSOP) {
+          var beforeSum = pendingBeforeSOP.block.counts.reduce(function (a, b) { return a + b.count; }, 0);
+          var afterSum = sb2.block.counts.reduce(function (a, b) { return a + b.count; }, 0);
+          if (beforeSum > 0 && afterSum === 0) {
+            push({
+              severity: "critical",
+              time: time,
+              title: "Банкомат залишився без готівки після обслуговування",
+              detail: "Перед завершенням сесії обслуговування в касетах залишалось " + beforeSum + " банкнот, після — 0. Касети вилучили, але заново не завантажили — банкомат не готовий видавати готівку.",
+              evidence: pendingBeforeSOP.block.raw.concat(sb2.block.raw)
+            }, pendingBeforeSOP.line);
+          }
+          pendingBeforeSOP = null;
+        }
+        i = sb2.nextIndex - 1;
+        continue;
+      }
+
+      if (/GO OUT OF SERVICE COMMAND/.test(rest)) {
+        lastOutOfServiceTime = { time: time, line: i };
+      }
+      if (/GO IN SERVICE COMMAND/.test(rest) && lastOutOfServiceTime) {
+        var mins = diffMinutes(lastOutOfServiceTime.time, time);
+        if (mins >= 20) {
+          push({
+            severity: "info",
+            time: lastOutOfServiceTime.time,
+            title: "Банкомат був поза обслуговуванням " + formatDuration(mins),
+            detail: "Період з " + lastOutOfServiceTime.time + " до " + time + ". Операції клієнтів у цей час були недоступні.",
+            evidence: []
+          }, lastOutOfServiceTime.line);
+        }
+        lastOutOfServiceTime = null;
+      }
+    }
+
+    if (commTroubleStart) {
+      push({
+        severity: "critical",
+        title: "Зв'язок із процесинговим центром не відновився до кінця журналу",
+        time: commTroubleStart.time,
+        detail: "О " + commTroubleStart.time + " зафіксовано: " + commTroubleStart.label + ". До кінця журналу штатного повідомлення COMMUNICATION ONLINE не з'явилось — можливо, проблема триває й досі.",
+        evidence: [rawLines[commTroubleStart.line] ? rawLines[commTroubleStart.line].trim() : ""].filter(Boolean)
+      }, commTroubleStart.line);
+    }
+
+    if (cardIssues.noRead >= 3) {
+      findings.push({
+        severity: "warning",
+        line: null,
+        time: meta.lastTime,
+        title: "Зчитувач карток регулярно не читає картки (" + cardIssues.noRead + " раз(и))",
+        detail: "У журналі " + cardIssues.noRead + " раз(и) зафіксовано, що вставлену картку повернуто без жодних зчитаних даних. За документацією виробника (IDCU) — типові причини: забруднена/зношена головка зчитування, несправність або забруднення шторки картрідера, механічна перешкода в тракті. Рекомендується перевірити й обслужити зчитувач карток.",
+        evidence: []
+      });
+    }
+    if (cardIssues.emptyTrack2 >= 5) {
+      findings.push({
+        severity: "info",
+        line: null,
+        time: meta.lastTime,
+        title: "Магнітна смуга картки не читається повторно (" + cardIssues.emptyTrack2 + " раз(и))",
+        detail: "У журналі " + cardIssues.emptyTrack2 + " раз(и) поле TRACK 2 DATA було порожнім при в цілому успішних чіп-транзакціях. Разові випадки — не проблема, але таке повторення вказує на зношену чи забруднену головку магнітної смуги зчитувача карток — варто перевірити при наступному обслуговуванні.",
+        evidence: []
+      });
+    }
+
+    // Group CDM hardware-error occurrences by the field that actually
+    // identifies the specific fault (the vendor's documented "Error Code" —
+    // see decodeCdmCode / CDM_DISPENSER_CODES, sourced from the Diebold
+    // Nixdorf / Wincor Nixdorf CMD-V4 "Basic Error Codes" manual). Repeats of
+    // the same code mark a recurring fault rather than a one-off.
+    var cdmGroups = {};
+    findings.forEach(function (f) {
+      if (f.cdmPrimary) {
+        (cdmGroups[f.cdmPrimary] = cdmGroups[f.cdmPrimary] || []).push(f);
+      }
+    });
+    Object.keys(cdmGroups).forEach(function (code) {
+      var group = cdmGroups[code];
+      var repeatNote = group.length > 1
+        ? " Цей код повторився в журналі " + group.length + " рази (о " + group.map(function (g) { return g.time; }).join(", ") + ") — це радше системна несправність, ніж разовий збій."
+        : "";
+      group.forEach(function (f) {
+        if (!f.cdmDecoded) {
+          f.detail += " Точний опис цього коду відсутній у перекладеній таблиці виробника (Diebold Nixdorf / Wincor Nixdorf CMD-V4) — покажіть його сервісному інженеру термінала для розшифрування за повною внутрішньою документацією.";
+        }
+        f.detail += repeatNote;
+        if (f.cdmFields && f.cdmFields.length >= 2) {
+          f.evidence = (f.evidence || []).concat([
+            "Поле 1 (клас): " + f.cdmFields[0],
+            "Поле 2 (код): " + f.cdmFields[1],
+            f.cdmFields[2] ? "Поле 3 (резерв): " + f.cdmFields[2] : ""
+          ].filter(Boolean));
+        }
+      });
+    });
+
+    var order = { critical: 0, warning: 1, info: 2 };
+    findings.sort(function (a, b) { return order[a.severity] - order[b.severity] || a.time.localeCompare(b.time); });
+
+    return { meta: meta, findings: findings, stats: stats, lines: rawLines };
+  }
+
+  // ---------------------------------------------------------------
+  // Verdict synthesis
+  // ---------------------------------------------------------------
+  function buildVerdict(result) {
+    var f = result.findings;
+    var blocked = f.find(function (x) { return /заблокована/.test(x.title); });
+    var empty = f.find(function (x) { return /залишився без готівки/.test(x.title); });
+    var cdm = f.find(function (x) { return /CDM/.test(x.title); });
+    var illegal = f.filter(function (x) { return /Нештатне вимкнення/.test(x.title); });
+    var anyCritical = f.filter(function (x) { return x.severity === "critical"; });
+
+    if (blocked && empty) {
+      return {
+        severity: "critical",
+        title: "Завантаження зірвалось через блокування касети",
+        body: "О " + blocked.time + " " + blocked.title.charAt(0).toLowerCase() + blocked.title.slice(1) + ". Через це о " + empty.time + " інкасатор був змушений вилучити всі касети — банкомат завершив сесію з нульовим залишком готівки й не міг видавати кошти.",
+        points: [blocked, empty].concat(cdm ? [cdm] : [])
+      };
+    }
+    if (empty) {
+      return {
+        severity: "critical",
+        title: empty.title,
+        body: empty.detail,
+        points: [empty]
+      };
+    }
+    if (anyCritical.length) {
+      var top = anyCritical[0];
+      return {
+        severity: "critical",
+        title: top.title,
+        body: top.detail,
+        points: anyCritical.slice(0, 4)
+      };
+    }
+    if (f.filter(function (x) { return x.severity === "warning"; }).length) {
+      var w = f.filter(function (x) { return x.severity === "warning"; })[0];
+      return { severity: "warning", title: w.title, body: w.detail, points: [w] };
+    }
+    return {
+      severity: "ok",
+      title: "Критичних проблем із завантаженням не виявлено",
+      body: "У журналі не знайдено ознак блокування касет, апаратних помилок диспенсера чи сесій без готівки за поточним набором правил.",
+      points: []
+    };
+  }
+
+  // ---------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------
+  var SEV_LABEL = { critical: "Критично", warning: "Увага", info: "Інфо", ok: "Знайдено" };
+  var els = {};
+  [
+    "resetBtn", "intro", "dropzone", "fileInput", "sampleBtn", "errBox", "batchSection",
+    "batchSummary", "batchCdm", "batchCdmList", "batchCount", "batchList", "results",
+    "viewingTag", "viewingName", "statsBar", "verdict", "verdictLabel", "verdictTitle",
+    "verdictBody", "verdictTimeline", "findingsCount", "filterChips", "findingsList",
+    "rawlogDetails", "rawSearch", "rawlogBody", "footnote"
+  ].forEach(function (id) { els[id] = document.getElementById(id); });
+
+  var currentResult = null;
+  var activeFilter = "all";
+  var batchItems = [];
+  var activeIndex = -1;
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function renderStats(result, meta) {
+    var f = result.findings;
+    var counts = { critical: 0, warning: 0, info: 0 };
+    f.forEach(function (x) { counts[x.severity]++; });
+    var tiles = [
+      ["Банкомат", result.meta.atmId || "—"],
+      ["Адреса", result.meta.address || "—"],
+      ["Відділення", result.meta.branch || "—"],
+      ["Дата", result.meta.baseDate || "—"],
+      ["Період журналу", (result.meta.firstTime || "—") + " – " + (result.meta.lastTime || "—")],
+      ["Транзакцій", result.stats.transactions],
+      ["Знахідок", f.length + " (" + counts.critical + " крит.)"],
+      ["Кодування", meta.encoding]
+    ];
+    els.statsBar.innerHTML = tiles.map(function (t) {
+      return '<div class="stat"><div class="k">' + esc(t[0]) + '</div><div class="v">' + esc(t[1]) + "</div></div>";
+    }).join("");
+  }
+
+  function renderVerdict(result) {
+    var v = buildVerdict(result);
+    els.verdict.className = "verdict sev-" + v.severity;
+    els.verdictLabel.textContent = v.severity === "ok" ? "Все гаразд" : v.severity === "warning" ? "Потребує уваги" : "Ключовий висновок";
+    els.verdictTitle.textContent = v.title;
+    els.verdictBody.textContent = v.body;
+    els.verdictTimeline.innerHTML = v.points.map(function (p) {
+      return '<span class="tl-pt">' + esc(p.time) + " · " + esc(p.title) + "</span>";
+    }).join("");
+  }
+
+  function renderChips(result) {
+    var counts = { all: result.findings.length, critical: 0, warning: 0, info: 0 };
+    result.findings.forEach(function (x) { counts[x.severity]++; });
+    var defs = [
+      ["all", "Усі", "c-all"],
+      ["critical", "Критично", "c-critical"],
+      ["warning", "Увага", "c-warning"],
+      ["info", "Інфо", "c-info"]
+    ];
+    els.filterChips.innerHTML = defs.map(function (d) {
+      return '<button class="chip ' + d[2] + '" data-filter="' + d[0] + '" aria-pressed="' + (activeFilter === d[0]) + '" type="button"><span class="dot"></span>' + d[1] + " (" + counts[d[0]] + ")</button>";
+    }).join("");
+    Array.prototype.forEach.call(els.filterChips.querySelectorAll(".chip"), function (btn) {
+      btn.addEventListener("click", function () {
+        activeFilter = btn.getAttribute("data-filter");
+        renderChips(result);
+        renderFindings(result);
+      });
+    });
+  }
+
+  function renderFindings(result) {
+    var list = activeFilter === "all" ? result.findings : result.findings.filter(function (x) { return x.severity === activeFilter; });
+    els.findingsCount.textContent = "(" + list.length + ")";
+    if (!list.length) {
+      els.findingsList.innerHTML = '<div class="empty-state">Немає знахідок для обраного фільтра.</div>';
+      return;
+    }
+    els.findingsList.innerHTML = list.map(function (f, idx) {
+      var ev = f.evidence && f.evidence.length
+        ? '<div class="finding-actions"><button class="link-btn" data-toggle-ev="' + idx + '" type="button">Показати рядки журналу</button>' +
+          (typeof f.line === "number" ? '<button class="link-btn" data-goto="' + f.line + '" type="button">Перейти в журнал →</button>' : "") +
+          '</div><div class="evidence" id="ev-' + idx + '">' + esc(f.evidence.join("\n")) + "</div>"
+        : (typeof f.line === "number" ? '<div class="finding-actions"><button class="link-btn" data-goto="' + f.line + '" type="button">Перейти в журнал →</button></div>' : "");
+      return '<div class="finding sev-' + f.severity + '"><div class="stripe"></div><div class="finding-body">' +
+        '<div class="finding-top"><span class="sev-badge">' + SEV_LABEL[f.severity] + '</span><span class="finding-time">' + esc(f.time) + "</span></div>" +
+        "<h5>" + esc(f.title) + "</h5><p>" + esc(f.detail) + "</p>" + ev + "</div></div>";
+    }).join("");
+
+    Array.prototype.forEach.call(els.findingsList.querySelectorAll("[data-toggle-ev]"), function (btn) {
+      btn.addEventListener("click", function () {
+        var box = document.getElementById("ev-" + btn.getAttribute("data-toggle-ev"));
+        box.style.display = box.style.display === "block" ? "none" : "block";
+      });
+    });
+    Array.prototype.forEach.call(els.findingsList.querySelectorAll("[data-goto]"), function (btn) {
+      btn.addEventListener("click", function () {
+        gotoLine(+btn.getAttribute("data-goto"));
+      });
+    });
+  }
+
+  function renderRawlog(result) {
+    var frag = document.createDocumentFragment();
+    result.lines.forEach(function (l, idx) {
+      var div = document.createElement("div");
+      div.className = "logline" + (l.trim() === "" ? " dim" : "");
+      div.id = "line-" + idx;
+      var num = document.createElement("span");
+      num.className = "ln";
+      num.textContent = idx + 1;
+      div.appendChild(num);
+      div.appendChild(document.createTextNode(l));
+      frag.appendChild(div);
+    });
+    els.rawlogBody.innerHTML = "";
+    els.rawlogBody.appendChild(frag);
+  }
+
+  function gotoLine(idx) {
+    els.rawlogDetails.open = true;
+    var target = document.getElementById("line-" + idx);
+    if (!target) return;
+    requestAnimationFrame(function () {
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      target.classList.add("flash");
+      setTimeout(function () { target.classList.remove("flash"); }, 1800);
+    });
+  }
+
+  els.rawSearch.addEventListener("input", function () {
+    var q = els.rawSearch.value.trim().toLowerCase();
+    var rows = els.rawlogBody.children;
+    for (var i = 0; i < rows.length; i++) {
+      var show = !q || rows[i].textContent.toLowerCase().indexOf(q) !== -1;
+      rows[i].classList.toggle("hidden", !show);
+    }
+  });
+
+  function severityOfResult(result) {
+    var has = { critical: false, warning: false };
+    result.findings.forEach(function (f) { if (has[f.severity] === false) has[f.severity] = true; });
+    if (has.critical) return "critical";
+    if (has.warning) return "warning";
+    return "ok";
+  }
+
+  function renderDetail(item) {
+    currentResult = item.result;
+    activeFilter = "all";
+    renderStats(item.result, { encoding: item.encoding });
+    renderVerdict(item.result);
+    renderChips(item.result);
+    renderFindings(item.result);
+    renderRawlog(item.result);
+    els.footnote.innerHTML = "Файл: <strong>" + esc(item.filename) + "</strong> (" + (item.size ? Math.round(item.size / 1024) + " КБ" : "") + ") · " +
+      "розпізнано кодування " + esc(item.encoding) + ", " + item.result.stats.lineCount + " рядків, " + item.result.stats.reportCount + " звітів касет. " +
+      "Правила детекції: аварійне вимкнення (ILLEGAL SHUTDOWN), заблокована/відбраковує касета, помилка CDM, обнулення готівки після SOP, тривала відсутність обслуговування (&gt;20&nbsp;хв), втрата зв'язку з процесинговим центром (COMMUNICATION OFFLINE/ONLINE), не прочитана картка (CARD() TAKEN, порожній TRACK 2 DATA). Це евристичний розбір журналу конкретної моделі ПЗ термінала — формат інших виробників може розпізнаватися частково. " +
+      "Коди «CDM ERROR» розшифровуються за перекладеною таблицею офіційної документації виробника (Diebold Nixdorf / Wincor Nixdorf CMD-V4 «Basic Error Codes»): код помилки — останні 2 цифри другого поля. Повторення того самого коду в журналі підсвічується як ознака системної, а не разової несправності. Коди, яких немає в перекладеній таблиці, позначаються як нерозпізнані — для них варто звернутись до сервісного інженера з повною документацією.";
+    els.intro.style.display = "none";
+    els.results.style.display = "block";
+    els.resetBtn.style.display = "inline-flex";
+    els.errBox.style.display = "none";
+
+    if (batchItems.length > 1) {
+      els.viewingTag.style.display = "flex";
+      els.viewingName.textContent = item.filename;
+    } else {
+      els.viewingTag.style.display = "none";
+    }
+  }
+
+  function selectItem(idx) {
+    if (!batchItems[idx]) return;
+    activeIndex = idx;
+    renderDetail(batchItems[idx]);
+    if (batchItems.length > 1) renderBatchList();
+  }
+
+  function renderBatchSummary(items) {
+    var totals = { critical: 0, warning: 0, info: 0, transactions: 0 };
+    var dates = [];
+    items.forEach(function (item) {
+      item.result.findings.forEach(function (f) { totals[f.severity]++; });
+      totals.transactions += item.result.stats.transactions;
+      if (item.result.meta.baseDate) dates.push(item.result.meta.baseDate);
+    });
+    dates.sort();
+    var period = dates.length ? (dates[0] === dates[dates.length - 1] ? dates[0] : dates[0] + " – " + dates[dates.length - 1]) : "—";
+    var tiles = [
+      ["Файлів", items.length],
+      ["Період", period],
+      ["Критичних", totals.critical],
+      ["Увага", totals.warning],
+      ["Інфо", totals.info],
+      ["Транзакцій", totals.transactions]
+    ];
+    els.batchSummary.innerHTML = tiles.map(function (t) {
+      return '<div class="stat"><div class="k">' + esc(t[0]) + '</div><div class="v">' + esc(t[1]) + "</div></div>";
+    }).join("");
+  }
+
+  function renderBatchCdm(items) {
+    var groups = {};
+    items.forEach(function (item) {
+      item.result.findings.forEach(function (f) {
+        if (f.cdmPrimary) {
+          (groups[f.cdmPrimary] = groups[f.cdmPrimary] || []).push({ filename: item.filename, time: f.time, decoded: f.cdmDecoded });
+        }
+      });
+    });
+    var codes = Object.keys(groups).filter(function (c) { return groups[c].length > 1; });
+    codes.sort(function (a, b) { return groups[b].length - groups[a].length; });
+    if (!codes.length) {
+      els.batchCdm.style.display = "none";
+      return;
+    }
+    els.batchCdm.style.display = "block";
+    els.batchCdmList.innerHTML = codes.map(function (code) {
+      var occ = groups[code];
+      var filesCount = new Set(occ.map(function (o) { return o.filename; })).size;
+      var decodedInfo = occ.map(function (o) { return o.decoded; }).filter(Boolean)[0];
+      var reasonHtml = decodedInfo
+        ? '<div class="cdm-reason">' + esc(decodedInfo.label) + " — " + esc(decodedInfo.info.reason) + "</div>"
+        : '<div class="cdm-reason">Код не розпізнано в перекладеній таблиці виробника — звірте з повною документацією.</div>';
+      var occHtml = occ.map(function (o) { return '<span>' + esc(o.filename) + " · " + esc(o.time) + "</span>"; }).join("");
+      return '<div class="cdm-group"><span class="code">' + esc(code) + "</span> — " + occ.length + " раз(и) у " + filesCount + " файл(ах)" +
+        reasonHtml + '<span class="occ">' + occHtml + "</span></div>";
+    }).join("");
+  }
+
+  function renderBatchList() {
+    els.batchCount.textContent = "(" + batchItems.length + ")";
+    els.batchList.innerHTML = batchItems.map(function (item, idx) {
+      var sev = severityOfResult(item.result);
+      var counts = { critical: 0, warning: 0, info: 0 };
+      item.result.findings.forEach(function (f) { counts[f.severity]++; });
+      var pills = ["critical", "warning", "info"].filter(function (s) { return counts[s] > 0; })
+        .map(function (s) { return '<span class="bpill ' + s + '">' + counts[s] + " " + SEV_LABEL[s].toLowerCase() + "</span>"; }).join("");
+      if (!pills) pills = '<span class="bpill ok">без знахідок</span>';
+      return '<button type="button" class="batch-row sev-' + sev + '" data-idx="' + idx + '" aria-current="' + (idx === activeIndex) + '">' +
+        '<span><span class="bname">' + esc(item.filename) + '</span><span class="bmeta">' + esc(item.result.meta.atmId || "—") + " · " + esc(item.result.meta.baseDate || "—") + "</span></span>" +
+        '<span class="bcounts">' + pills + "</span>" +
+        '<span class="barrow">→</span>' +
+        "</button>";
+    }).join("");
+    Array.prototype.forEach.call(els.batchList.querySelectorAll("[data-idx]"), function (btn) {
+      btn.addEventListener("click", function () { selectItem(+btn.getAttribute("data-idx")); });
+    });
+  }
+
+  function loadItems(items) {
+    if (!items.length) return;
+    batchItems = items;
+    activeIndex = 0;
+    if (batchItems.length > 1) {
+      renderBatchSummary(batchItems);
+      renderBatchCdm(batchItems);
+      renderBatchList();
+      els.batchSection.style.display = "block";
+    } else {
+      els.batchSection.style.display = "none";
+    }
+    selectItem(0);
+  }
+
+  function showError(msg) {
+    els.errBox.textContent = msg;
+    els.errBox.style.display = "block";
+  }
+
+  function processFile(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        try {
+          var bytes = new Uint8Array(reader.result);
+          var d = decodeBytes(bytes);
+          var result = parseLog(d.text, file.name);
+          resolve({ filename: file.name, size: file.size, encoding: d.encoding, result: result });
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.onerror = function () { reject(new Error("не вдалося прочитати файл")); };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function handleFiles(fileList) {
+    var files = Array.prototype.slice.call(fileList || []);
+    if (!files.length) return;
+    Promise.all(files.map(function (f) {
+      return processFile(f).then(
+        function (item) { return item; },
+        function (e) { return { filename: f.name, error: e.message }; }
+      );
+    })).then(function (results) {
+      var ok = results.filter(function (r) { return !r.error; });
+      var failed = results.filter(function (r) { return r.error; });
+      if (!ok.length) {
+        showError("Не вдалося розібрати жоден із файлів" + (failed[0] ? ": " + failed[0].error : "") + ".");
+        return;
+      }
+      loadItems(ok);
+      if (failed.length) {
+        showError("Розібрано " + ok.length + " з " + files.length + ". Не вдалося прочитати: " + failed.map(function (f) { return f.filename; }).join(", "));
+      }
+    });
+  }
+
+  function buildSampleItem() {
+    var bytes = b64ToBytes(SAMPLE_B64);
+    var d = decodeBytes(bytes);
+    var result = parseLog(d.text, SAMPLE_NAME);
+    return { filename: SAMPLE_NAME, size: bytes.length, encoding: d.encoding, result: result };
+  }
+
+  // ---------------------------------------------------------------
+  // Wiring
+  // ---------------------------------------------------------------
+  els.dropzone.addEventListener("click", function () { els.fileInput.click(); });
+  els.dropzone.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); els.fileInput.click(); }
+  });
+  els.dropzone.addEventListener("dragover", function (e) { e.preventDefault(); els.dropzone.classList.add("drag"); });
+  els.dropzone.addEventListener("dragleave", function () { els.dropzone.classList.remove("drag"); });
+  els.dropzone.addEventListener("drop", function (e) {
+    e.preventDefault();
+    els.dropzone.classList.remove("drag");
+    if (e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+  els.fileInput.addEventListener("change", function () {
+    if (els.fileInput.files && els.fileInput.files.length) handleFiles(els.fileInput.files);
+  });
+  els.sampleBtn.addEventListener("click", function () {
+    try {
+      loadItems([buildSampleItem()]);
+    } catch (e) {
+      showError("Не вдалося розібрати приклад: " + e.message);
+    }
+  });
+  els.resetBtn.addEventListener("click", function () {
+    els.results.style.display = "none";
+    els.batchSection.style.display = "none";
+    els.intro.style.display = "block";
+    els.resetBtn.style.display = "none";
+    els.fileInput.value = "";
+    currentResult = null;
+    batchItems = [];
+    activeIndex = -1;
+  });
+})();
+</script>
