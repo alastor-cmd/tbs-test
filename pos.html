@@ -145,7 +145,7 @@ tr:hover td{background:#f7fbf7;}
   <h1>ПОС-термінали</h1>
   <div class="header-sep"></div>
   <div class="header-sub">Профілі CASH + СБОН</div>
-  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 01.10 09:26 test</span>
+  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 01.10 09:30 test</span>
   <span class="db-status" id="headerUser"></span>
   <span class="db-status" id="dbStatus">завантаження…</span>
   <button class="back" onclick="openInstruction()" title="Інструкція користувача">📘 Інструкція</button>
@@ -1263,13 +1263,22 @@ const SN_SUBJ = 'Отримання СН для заміни POS-терміна�
 let snSel = new Set();
 
 function snSource() {
+  const info = infoByIdMap();
+  const key = k => {
+    const i = info.get(k) || {}, b = i.b || {}, reg = registry.get(k) || {};
+    return { tvbv: b.tvbv || String(reg.d2 || '').replace(/^\s*ТВБВ\s*№?\s*/i, ''), ord: i.ord || 999 };
+  };
   return [...allIds()].filter(k => registry.has(k) && !serials.has(k))
-    .sort((a, b) => a.localeCompare(b, 'uk', { numeric: true }));
+    .sort((a, b) => {
+      const x = key(a), y = key(b);
+      return String(x.tvbv).localeCompare(String(y.tvbv), 'uk', { numeric: true }) ||
+             x.ord - y.ord || a.localeCompare(b, 'uk', { numeric: true });
+    });
 }
 function openSn() {
   const cand = snSource();
   if (!cand.length) { alert('Немає терміналів без серійного номера.'); return; }
-  snSel = new Set(cand);
+  snSel = new Set();
   document.getElementById('snSearch').value = '';
   renderSnList();
   document.getElementById('snModalBg').classList.add('show');
