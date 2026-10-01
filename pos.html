@@ -1299,56 +1299,90 @@ function renderSnList() {
   updateSnCount();
 }
 
-// Текст листа: групуємо по ТВБВ, між групами — порожній рядок
-function snReqBody(ids) {
+// Перелік терміналів іде таблицею Excel у вкладенні
+function snRows(ids) {
   const info = infoByIdMap();
-  const groups = new Map();
-  ids.forEach(k => {
-    const reg = registry.get(k) || {}, i = info.get(k) || {};
-    const key = (reg.d2 || (i.b && 'ТВБВ №' + i.b.tvbv) || '—');
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push({
-      label: i.label || '', ord: i.ord || 999,
-      id: reg.terminal_id || k,
-      addr: [reg.d3, reg.d4].filter(Boolean).join(', ') || '—'
-    });
-  });
-  const blocks = [...groups.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0], 'uk', { numeric: true }))
-    .map(([tvbv, items]) => {
-      const lines = [tvbv];
-      items.sort((x, y) => x.ord - y.ord).forEach(it => {
-        if (it.label) lines.push(it.label);
-        lines.push(it.id);
-        lines.push(it.addr);
-        lines.push('Тип підключення - Ethernet');
-      });
-      return lines.join('\r\n');
-    });
-  return ['Доброго дня.',
-          'Прохання надати СН терміналів Desk 2600 i PinPad Desk 1600 для проведення замін.',
-          '', blocks.join('\r\n\r\n')].join('\r\n');
+  return ids.map(k => {
+    const reg = registry.get(k) || {}, i = info.get(k) || {}, b = i.b || {};
+    return {
+      id:   reg.terminal_id || k,
+      addr: [reg.d3, reg.d4].filter(Boolean).join(', '),
+      tvbv: b.tvbv || String(reg.d2 || '').replace(/^\s*ТВБВ\s*№?\s*/i, ''),
+      sbon: reg.sbon_tid || '',
+      slot: i.label || '',
+      ord:  i.ord || 999
+    };
+  }).sort((x, y) => String(x.tvbv).localeCompare(String(y.tvbv), 'uk', { numeric: true }) || x.ord - y.ord);
 }
 
-function sendSnReq(ids) {
+async function snXlsx(ids) {
+  const rows = snRows(ids);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Термінали');
+  const head = ['ІД термінала', 'Адреса', 'Номер відділення', 'ІД СБОН', 'Номер каси', 'Серійний номер'];
+  ws.columns = [14, 46, 20, 14, 18, 26].map(w => ({ width: w }));
+  ws.addRow(head);
+  rows.forEach(r => ws.addRow([r.id, r.addr, r.tvbv, r.sbon, r.slot, '']));
+  const thin = { style: 'thin' }, BD = { top: thin, left: thin, bottom: thin, right: thin };
+  for (let rn = 1; rn <= ws.rowCount; rn++) {
+    const row = ws.getRow(rn);
+    for (let c = 1; c <= head.length; c++) {
+      const cell = row.getCell(c);
+      cell.border = BD;
+      cell.font = { name: 'Calibri', size: 11, bold: rn === 1 };
+      cell.alignment = { vertical: 'middle', horizontal: c === 2 ? 'left' : 'center', wrapText: c === 2 };
+      if (rn === 1) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD8F5E3' } };
+    }
+  }
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: head.length } };
+  return { buf: await wb.xlsx.writeBuffer(), count: rows.length };
+}
+
+async function sendSnReq(ids) {
   if (!ids.length) { alert('Оберіть хоча б один термінал.'); return; }
-  const body = snReqBody(ids);
-  const link = 'mailto:' + RENOME_EMAIL + '?subject=' + encodeURIComponent(SN_SUBJ) +
-               '&body=' + encodeURIComponent(body);
-  logAction('sn_request', '—', `Запит СН: ${ids.length} терміналів`);
-  if (link.length <= 1900) { window.location.href = link; return; }
+  let xls;
+  try { xls = await snXlsx(ids); }
+  catch (e) { alert('Не вдалося сформувати таблицю:\n\n' + e.message); return; }
+
+  const body = ['Доброго дня.',
+    'Прохання надати СН терміналів Desk 2600 i PinPad Desk 1600 для проведення замін.',
+    '',
+    'Перелік терміналів — у вкладеному файлі.'].join('\r\n');
+
   const u8 = t => { const b = new TextEncoder().encode(t); let x = '';
     for (let i = 0; i < b.length; i++) x += String.fromCharCode(b[i]); return btoa(x); };
-  const eml = ['To: ' + RENOME_EMAIL, 'Subject: =?UTF-8?B?' + u8(SN_SUBJ) + '?=',
-    'X-Unsent: 1', 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8',
-    'Content-Transfer-Encoding: base64', '', u8(body).replace(/(.{76})/g, '$1\r\n')].join('\r\n');
+  const bytes = new Uint8Array(xls.buf);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  const wrap = t => t.replace(/(.{76})/g, '$1\r\n');
+  const stamp = ddmmyyyy(new Date());
+  const fname = `Термінали для заміни ${stamp}.xlsx`;
+  const B = '=_sn_' + Date.now();
+
+  const eml = ['To: ' + RENOME_EMAIL,
+    'Subject: =?UTF-8?B?' + u8(SN_SUBJ) + '?=',
+    'X-Unsent: 1', 'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${B}"`, '',
+    `--${B}`,
+    'Content-Type: text/plain; charset=utf-8',
+    'Content-Transfer-Encoding: base64', '', wrap(u8(body)),
+    `--${B}`,
+    'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    `Content-Disposition: attachment; filename="=?UTF-8?B?${u8(fname)}?="`,
+    'Content-Transfer-Encoding: base64', '', wrap(btoa(bin)),
+    `--${B}--`, ''].join('\r\n');
+
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([eml], { type: 'message/rfc822' }));
   a.download = SN_SUBJ + '.eml';
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
-  alert(`У листі ${ids.length} терміналів — це задовго для прямого відкриття.\n\nВідкрийте завантажений файл подвійним кліком.`);
+  logAction('sn_request', '—', `Запит СН: ${xls.count} терміналів (таблиця у вкладенні)`);
+  alert(`Лист сформовано: ${xls.count} терміналів у вкладеній таблиці.\n\n` +
+        'Відкрийте завантажений файл подвійним кліком — Outlook покаже готовий лист із вкладенням.');
 }
+
 function generateSnReq() { const ids = [...snSel]; closeSn(); sendSnReq(ids); }
 function requestSnOne() {
   if (!curId) return;
