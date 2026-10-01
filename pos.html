@@ -145,7 +145,7 @@ tr:hover td{background:#f7fbf7;}
   <h1>ПОС-термінали</h1>
   <div class="header-sep"></div>
   <div class="header-sub">Профілі CASH + СБОН</div>
-  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 01.10 09:30 test</span>
+  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 01.10 13:29 test</span>
   <span class="db-status" id="headerUser"></span>
   <span class="db-status" id="dbStatus">завантаження…</span>
   <button class="back" onclick="openInstruction()" title="Інструкція користувача">📘 Інструкція</button>
@@ -1328,10 +1328,11 @@ async function snXlsx(ids) {
   const rows = snRows(ids);
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Термінали');
-  const head = ['ІД термінала', 'Адреса', 'Номер відділення', 'ІД СБОН', 'Номер каси', 'Серійний номер'];
-  ws.columns = [14, 46, 20, 14, 18, 26].map(w => ({ width: w }));
+  const head = ['ІД термінала', 'Адреса', 'Номер відділення', 'ІД СБОН', 'Номер каси',
+                'Серійний номер', 'СН Pin-Pad'];
+  ws.columns = [14, 46, 20, 14, 18, 26, 26].map(w => ({ width: w }));
   ws.addRow(head);
-  rows.forEach(r => ws.addRow([r.id, r.addr, r.tvbv, r.sbon, r.slot, '']));
+  rows.forEach(r => ws.addRow([r.id, r.addr, r.tvbv, r.sbon, r.slot, '', '']));
   const thin = { style: 'thin' }, BD = { top: thin, left: thin, bottom: thin, right: thin };
   for (let rn = 1; rn <= ws.rowCount; rn++) {
     const row = ws.getRow(rn);
