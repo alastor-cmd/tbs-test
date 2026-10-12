@@ -145,7 +145,7 @@ tr:hover td{background:#f7fbf7;}
   <h1>ПОС-термінали</h1>
   <div class="header-sep"></div>
   <div class="header-sub">Профілі CASH + СБОН</div>
-  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 01.10 13:29 test</span>
+  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 12.10 08:53 test</span>
   <span class="db-status" id="headerUser"></span>
   <span class="db-status" id="dbStatus">завантаження…</span>
   <button class="back" onclick="openInstruction()" title="Інструкція користувача">📘 Інструкція</button>
@@ -760,6 +760,7 @@ function updateStats() {
   document.getElementById('stSn').textContent = withSn;
   document.getElementById('stNew').textContent = fresh;
   document.getElementById('stExp').textContent = exp;
+  updateSnBtn();
   const batch = lastExportBatch();
   const bm = document.getElementById('btnMail');
   bm.disabled = batch.length === 0;
@@ -1105,6 +1106,7 @@ function fillRegInfo() {
     info.innerHTML = '<b>Немає в реєстрі cash_POS.</b> Серійний номер збережеться, але у файл термінал не потрапить, доки його не буде в реєстрі.';
     btn.textContent = '➕ Додати в реєстр';
   }
+  markSnBtn();
 }
 
 function openReg() {
@@ -1278,7 +1280,8 @@ function snSource() {
 function openSn() {
   const cand = snSource();
   if (!cand.length) { alert('Немає терміналів без серійного номера.'); return; }
-  snSel = new Set();
+  // позначене з карток терміналів зберігається; лишаємо лише те, що ще без СН
+  snSel = new Set([...snSel].filter(k => cand.indexOf(k) !== -1));
   document.getElementById('snSearch').value = '';
   renderSnList();
   document.getElementById('snModalBg').classList.add('show');
@@ -1393,11 +1396,34 @@ async function sendSnReq(ids) {
         'Відкрийте завантажений файл подвійним кліком — Outlook покаже готовий лист із вкладенням.');
 }
 
-function generateSnReq() { const ids = [...snSel]; closeSn(); sendSnReq(ids); }
+async function generateSnReq() {
+  const ids = [...snSel];
+  if (!ids.length) { alert('Оберіть хоча б один термінал.'); return; }
+  closeSn();
+  await sendSnReq(ids);
+  snSel.clear(); updateSnBtn(); markSnBtn();
+}
 function requestSnOne() {
   if (!curId) return;
   if (!registry.has(curId)) { alert('Термінала немає в реєстрі — дані для листа взяти нізвідки.'); return; }
-  closeModal(); sendSnReq([curId]);
+  if (serials.has(curId)) { alert('Для цього термінала серійний номер уже введено.'); return; }
+  const was = snSel.has(curId);
+  if (was) snSel.delete(curId); else snSel.add(curId);
+  updateSnBtn(); markSnBtn();
+  setStatus((was ? '● знято з запиту СН: ' : '● додано до запиту СН: ') + curId +
+            ' · у запиті: ' + snSel.size);
+}
+function markSnBtn() {
+  const b = document.getElementById('mSnReq');
+  if (!b) return;
+  const inList = curId && snSel.has(curId);
+  b.textContent = inList ? '✅ У запиті СН — зняти' : '📩 Запросити СН';
+  b.title = inList ? 'Термінал уже позначено для запиту серійних номерів'
+                   : 'Позначити термінал для запиту серійних номерів';
+}
+function updateSnBtn() {
+  const b = document.getElementById('btnSnReq');
+  if (b) b.textContent = snSel.size ? `📩 Запросити СН (${snSel.size})` : '📩 Запросити СН';
 }
 
 // ===== ВІДВАНТАЖИТИ ВСІ =====
