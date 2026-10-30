@@ -145,7 +145,7 @@ tr:hover td{background:#f7fbf7;}
   <h1>ПОС-термінали</h1>
   <div class="header-sep"></div>
   <div class="header-sub">Профілі CASH + СБОН</div>
-  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 12.10 12:19 test</span>
+  <span class="version-badge" title="Версія збірки — звіряйте, чи не стара копія з кешу">v1.0 · 30.10 09:50 test</span>
   <span class="db-status" id="headerUser"></span>
   <span class="db-status" id="dbStatus">завантаження…</span>
   <button class="back" onclick="openInstruction()" title="Інструкція користувача">📘 Інструкція</button>
@@ -536,6 +536,14 @@ function normList(a) {
 async function loadAll(silent) {
   try {
     if (!silent) setStatus('завантаження…');
+    if (silent) {
+      const sn = await sbGetAll(T_SN, 'terminal_id.asc');
+      serials = new Map(sn.map(r => [normId(r.terminal_id),
+        { serial: norm(r.serial), exported_at: r.exported_at || null, entered_at: r.entered_at || null }]));
+      setStatus('● оновлено · ' + new Date().toLocaleTimeString('uk-UA'));
+      render();
+      return;
+    }
     const [b, reg, sn, ru] = await Promise.all([
       sbGetAll(T_BRANCH, 'tvbv.asc'),
       sbGetAll(T_REG, 'terminal_id.asc'),
@@ -573,7 +581,7 @@ function startAutoRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
   refreshTimer = setInterval(() => {
     if (!anyModalOpen() && document.visibilityState === 'visible') loadAll(true);
-  }, 45000);
+  }, 300000);   // 5 хв замість 45 с — економія трафіку
 }
 
 // ===== ІМПОРТ: ДОДАТОК 1 =====
